@@ -14,13 +14,23 @@ import { ActionParserRepository } from "src/frontend/abstract-syntax-tree/elemen
 import { ConditionParserRepository } from "src/frontend/abstract-syntax-tree/elements/trigger/condition";
 import { ParserSymbolContext } from "src/frontend/abstract-syntax-tree/symbol-context";
 import type { ObjectLists } from "src/frontend/object-lists";
-import type { SymbolBinder } from "src/frontend/symbol-table";
+import type {
+  SymbolBinder,
+  SymbolBinderCheckpoint,
+} from "src/frontend/symbol-table";
 import { type Token, TokenKind, type Tokens } from "src/frontend/tokens";
+
+/** Parser state saved before a speculative parse. */
+export interface ParserCheckpoint {
+  readonly symbols: SymbolBinderCheckpoint;
+  readonly tokenIndex: number;
+}
 
 // Used by the parse function to track it's progress & refer to variables in scope.
 export class ParserContext {
   private readonly tokens: Tokens;
   private tokenIndex = 0;
+  private readonly symbolBinder: SymbolBinder;
 
   public readonly frontend: MegaloCompilerContext;
   public readonly diagnostics: Diagnostics;
@@ -46,6 +56,7 @@ export class ParserContext {
     this.frontend = frontend;
     this.diagnostics = diagnostics;
     this.tokens = tokens;
+    this.symbolBinder = symbolTable;
     this.symbolParser =
       sharedSymbolParser ??
       new ParserSymbolContext(frontend, diagnostics, symbolTable, objectLists);
@@ -74,12 +85,34 @@ export class ParserContext {
     return this.tokenIndex < this.tokens.length;
   }
 
+  /** Current token index (for progress checks, not for backtracking). */
   public mark(): number {
     return this.tokenIndex;
   }
 
+  /**
+   * Move to a token index. Binder state is kept, so use
+   * {@link checkpoint}/{@link rollback} to undo a speculative parse.
+   */
   public reset(mark: number): void {
     this.tokenIndex = mark;
+  }
+
+  /** Save parser state before a speculative parse. */
+  public checkpoint(): ParserCheckpoint {
+    return {
+      tokenIndex: this.tokenIndex,
+      symbols: this.symbolBinder.checkpoint(),
+    };
+  }
+
+  /**
+   * Undo a failed speculative parse: rewind the token stream and drop symbols
+   * and references it added to the binder.
+   */
+  public rollback(checkpoint: ParserCheckpoint): void {
+    this.tokenIndex = checkpoint.tokenIndex;
+    this.symbolBinder.rollback(checkpoint.symbols);
   }
 
   /**

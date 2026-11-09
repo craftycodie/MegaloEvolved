@@ -310,6 +310,12 @@ export class SymbolTable {
   }
 }
 
+/** Position in a {@link SymbolBinder}, for rolling back speculative parses. */
+export interface SymbolBinderCheckpoint {
+  readonly references: number;
+  readonly symbols: number;
+}
+
 /**
  * SymbolBinder is responsible for binding symbols to their declarations and adding references to them.
  * It handles diagnostics for things related to symbol declarations, like duplicate declarations or scope issues.
@@ -317,6 +323,8 @@ export class SymbolTable {
 // Analysis lifecycle - we build a new one each analysis pass.
 export class SymbolBinder {
   private readonly table: SymbolTableEntry[] = [];
+  /** Symbol id per `addReference` call, in order, so speculation can undo them. */
+  private readonly referenceLog: SymbolId[] = [];
   private readonly diagnostics: Diagnostics;
   private readonly frontend: MegaloCompilerContext;
 
@@ -577,6 +585,27 @@ export class SymbolBinder {
 
   public addReference(symbolId: SymbolId, reference: SourceCodeLocation): void {
     this.table[symbolId].references.push(reference);
+    this.referenceLog.push(symbolId);
+  }
+
+  public checkpoint(): SymbolBinderCheckpoint {
+    return {
+      symbols: this.table.length,
+      references: this.referenceLog.length,
+    };
+  }
+
+  /**
+   * Drop symbols and references added since `checkpoint` (a failed
+   * speculative parse). Scope maps in `ParserSymbolContext` are not rolled
+   * back, so speculative parses must not declare symbols.
+   */
+  public rollback(checkpoint: SymbolBinderCheckpoint): void {
+    while (this.referenceLog.length > checkpoint.references) {
+      const symbolId = this.referenceLog.pop()!;
+      this.table[symbolId]?.references.pop();
+    }
+    this.table.length = checkpoint.symbols;
   }
 
   public setScopeStart(symbolId: SymbolId, position: SourcePosition): void {

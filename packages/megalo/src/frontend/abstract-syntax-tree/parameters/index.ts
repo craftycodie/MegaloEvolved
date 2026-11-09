@@ -642,12 +642,12 @@ export const tryParseParameterValue = (
   ...specs: ParameterSpec[]
 ): ASTParameterNode | undefined => {
   for (const spec of specs) {
-    const mark = ctx.mark();
+    const checkpoint = ctx.checkpoint();
     const parameter = parseParameter(ctx, spec);
     if (parameter !== undefined) {
       return parameter;
     }
-    ctx.reset(mark);
+    ctx.rollback(checkpoint);
   }
 
   return;
@@ -711,13 +711,13 @@ const tryParseSlot = (
 
   if (isParameterUnion(slot)) {
     for (const spec of slot) {
-      const mark = ctx.mark();
+      const checkpoint = ctx.checkpoint();
       const parameter = parseParameter(ctx, spec);
       if (parameter !== undefined) {
         return [parameter];
       }
 
-      ctx.reset(mark);
+      ctx.rollback(checkpoint);
     }
 
     return;
@@ -774,13 +774,13 @@ const parseSlot = (
 
   if (isParameterUnion(slot)) {
     for (const spec of slot) {
-      const mark = ctx.mark();
+      const checkpoint = ctx.checkpoint();
       const parameter = parseParameter(ctx, spec);
       if (parameter !== undefined) {
         return [parameter];
       }
 
-      ctx.reset(mark);
+      ctx.rollback(checkpoint);
     }
 
     if (isTriggerStatementBoundary(ctx.peekToken())) {
@@ -865,13 +865,13 @@ export const parameterParserBuilder = (
     const parseAnchor = anchor;
 
     for (const signature of signatures) {
-      const mark = ctx.mark();
+      const checkpoint = ctx.checkpoint();
       const parameters = tryParseSignature(ctx, signature);
       if (parameters !== undefined) {
         return parameters;
       }
 
-      ctx.reset(mark);
+      ctx.rollback(checkpoint);
     }
 
     // Prefer the signature whose slots match best. A slot that fails (e.g. an
@@ -882,7 +882,7 @@ export const parameterParserBuilder = (
     let bestScore = -1;
 
     for (const signature of signatures) {
-      const mark = ctx.mark();
+      const checkpoint = ctx.checkpoint();
       let score = 0;
 
       for (const slot of signature) {
@@ -896,7 +896,7 @@ export const parameterParserBuilder = (
         }
       }
 
-      ctx.reset(mark);
+      ctx.rollback(checkpoint);
 
       if (score > bestScore) {
         bestScore = score;
