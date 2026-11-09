@@ -109,7 +109,12 @@ export default defineConfig({
     testTimeout: 30_000,
     server: {
       deps: {
-        inline: ["@blamnetwork/blf", "@craftycodie/cstruct"],
+        // datamine imports cstruct, whose ESM build plain Node cannot load.
+        inline: [
+          "@blamnetwork/blf",
+          "@blamnetwork/datamine",
+          "@craftycodie/cstruct",
+        ],
       },
     },
   },

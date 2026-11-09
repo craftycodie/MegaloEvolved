@@ -10,6 +10,7 @@ import {
   type PublishDiagnosticsParams,
 } from "vscode-languageserver-protocol/node";
 import { startMegacrowLanguageServer } from "../src/createServer";
+import { startLspEventLog } from "../src/eventLog";
 import {
   MEGACROW_LIST_DIRECTORY_METHOD,
   MEGACROW_RESOLVE_BASE_FILE_METHOD,
@@ -71,6 +72,8 @@ export const startTestServer = async (
   const toClient = new MemoryReader();
 
   const server = createConnection(toServer, new MemoryWriter(toClient));
+  // As the real server entries do, so lsp: events reach the console.
+  startLspEventLog();
   startMegacrowLanguageServer(server);
 
   const client = createProtocolConnection(toClient, new MemoryWriter(toServer));

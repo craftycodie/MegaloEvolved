@@ -62,12 +62,6 @@ type DocsLocale = "en" | "ja";
 
 const ui = {
   en: {
-    nav: {
-      guide: "Guide",
-      megacrow: "MegaloEvolved",
-      language: "Language",
-      changelog: "Changelog",
-    },
     sidebar: {
       introduction: "Introduction",
       whatIsMegalo: "What is megalo?",
@@ -122,12 +116,6 @@ const ui = {
     },
   },
   ja: {
-    nav: {
-      guide: "ガイド",
-      megacrow: "MegaloEvolved",
-      language: "言語",
-      changelog: "変更履歴",
-    },
     sidebar: {
       introduction: "はじめに",
       whatIsMegalo: "megalo とは？",
@@ -479,34 +467,9 @@ function supportedVersionsSidebar(
   return items;
 }
 
-function buildNav(
-  prefix: string,
-  locale: DocsLocale
-): DefaultTheme.NavItem[] {
-  const t = ui[locale].nav;
-  return [
-    { text: "Blam Network", link: "https://blam.network" },
-    { text: t.guide, link: withLocalePrefix(prefix, "/guide/quick-start") },
-    {
-      text: t.megacrow,
-      link: withLocalePrefix(prefix, "/megacrow/"),
-      activeMatch: withLocalePrefix(prefix, "/megacrow/"),
-    },
-    {
-      text: t.language,
-      link: withLocalePrefix(prefix, "/language/"),
-      activeMatch: withLocalePrefix(prefix, "/language/"),
-    },
-    { text: t.changelog, link: withLocalePrefix(prefix, "/changelog") },
-    {
-      text: "npm",
-      link: "https://www.npmjs.com/package/@blamnetwork/megalo",
-    },
-    {
-      text: "GitHub",
-      link: "https://github.com/Blam-Network/megalo",
-    },
-  ];
+/** Top bar: only the Blam Network link; npm and GitHub are social icons. */
+function buildNav(): DefaultTheme.NavItem[] {
+  return [{ text: "Blam Network", link: "https://blam.network" }];
 }
 
 function buildSidebar(
@@ -663,7 +626,7 @@ export default defineConfig(async () => {
         label: "English",
         lang: "en",
         themeConfig: {
-          nav: buildNav("", "en"),
+          nav: buildNav(),
           sidebar: buildSidebar("", "en"),
         },
       },
@@ -675,7 +638,7 @@ export default defineConfig(async () => {
           "Megalo 言語と MegaloEvolved IDE のドキュメントです。",
         themeConfig: {
           ...japaneseThemeUi,
-          nav: buildNav("/ja", "ja"),
+          nav: buildNav(),
           sidebar: buildSidebar("/ja", "ja"),
         },
       },
