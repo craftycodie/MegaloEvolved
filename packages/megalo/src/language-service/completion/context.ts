@@ -13,6 +13,7 @@ import type { ConditionStatementNode } from "src/frontend/abstract-syntax-tree/e
 import type { TemporaryStatementNode } from "src/frontend/abstract-syntax-tree/elements/trigger/temporary";
 import { SyntaxKind } from "src/frontend/abstract-syntax-tree/kinds";
 import type { ASTParameterNode } from "src/frontend/abstract-syntax-tree/parameters";
+import { type Token, TokenKind } from "src/frontend/tokens";
 import { findCompletionPrefix } from "src/language-service/completion/replace-range";
 import type {
   CompletionContext,
@@ -78,21 +79,58 @@ const lineOfOffset = (snapshot: AnalysisSnapshot, offset: number): number => {
   return lo;
 };
 
-const lineTextBefore = (snapshot: AnalysisSnapshot, offset: number): string => {
+/**
+ * Last root-document token on the cursor's line that ends at or before `offset`.
+ * Under `reservedKeywords`, identifier values are exact keywords — no text regex.
+ */
+const lastTokenOnLineBefore = (
+  snapshot: AnalysisSnapshot,
+  offset: number
+): Token | undefined => {
   const line = lineOfOffset(snapshot, offset);
-  const start = snapshot.lineStarts[line]!;
-  return snapshot.source.slice(start, offset);
+  const lineStart = snapshot.lineStarts[line]!;
+  let last: Token | undefined;
+  for (const token of snapshot.tokens) {
+    if (!isRootDocumentLocation(token.location)) {
+      continue;
+    }
+    if (token.location.start.localOffset < lineStart) {
+      continue;
+    }
+    if (token.location.start.localOffset >= offset) {
+      break;
+    }
+    if (token.location.end.localOffset <= offset) {
+      last = token;
+    }
+  }
+  return last;
 };
 
-const endsWithStatementKeyword = (
-  before: string,
-  keyword: "action" | "condition" | "temporary"
-): boolean => {
-  const trimmed = before.trimEnd();
-  return (
-    trimmed === keyword ||
-    new RegExp(`(?:^|[\\t ])${keyword}$`, "i").test(trimmed)
-  );
+/** Immediate predecessor of `token` on the same line, if any. */
+const previousTokenOnLine = (
+  snapshot: AnalysisSnapshot,
+  token: Token
+): Token | undefined => {
+  const lineStart =
+    snapshot.lineStarts[token.location.start.line - 1] ??
+    token.location.start.localOffset;
+  let previous: Token | undefined;
+  for (const candidate of snapshot.tokens) {
+    if (!isRootDocumentLocation(candidate.location)) {
+      continue;
+    }
+    if (candidate.location.start.localOffset < lineStart) {
+      continue;
+    }
+    if (
+      candidate.location.start.localOffset >= token.location.start.localOffset
+    ) {
+      break;
+    }
+    previous = candidate;
+  }
+  return previous;
 };
 
 /** Placeholder used when completing `temporary ` before the statement parses. */
@@ -106,9 +144,35 @@ const syntheticTemporary = (
   location,
 });
 
-/** `trigger` or `trigger <partialName>` with nothing else on the line yet. */
-const isTriggerHeaderLineText = (before: string): boolean =>
-  /^trigger(?:\s+\S*)?$/i.test(before.trimStart());
+/**
+ * `trigger` or `trigger <partialName>` with nothing else on the line yet.
+ * Token-exact under reserved keywords.
+ */
+const isTriggerHeaderLine = (
+  snapshot: AnalysisSnapshot,
+  offset: number
+): boolean => {
+  const line = lineOfOffset(snapshot, offset);
+  const lineStart = snapshot.lineStarts[line]!;
+  const onLine: Token[] = [];
+  for (const token of snapshot.tokens) {
+    if (!isRootDocumentLocation(token.location)) {
+      continue;
+    }
+    if (token.location.start.localOffset < lineStart) {
+      continue;
+    }
+    if (token.location.start.localOffset >= offset) {
+      break;
+    }
+    onLine.push(token);
+  }
+  if (onLine.length === 0 || onLine.length > 2) {
+    return false;
+  }
+  const first = onLine[0]!;
+  return first.kind === TokenKind.Identifier && first.value === "trigger";
+};
 
 const isCompletingTriggerName = (
   snapshot: AnalysisSnapshot,
@@ -207,6 +271,10 @@ const isBlockHitKind = (kind: Hit["kind"]): boolean =>
   kind === "for_each" ||
   kind === "element";
 
+/**
+ * Whether the node's source span ends with a block `end`.
+ * Sound under `reservedKeywords`: a trailing `end` cannot be a variable.
+ */
 const closedWithEndKeyword = (
   snapshot: AnalysisSnapshot,
   node: Hit["node"]
@@ -434,24 +502,29 @@ const resolveTriggerBodyKeywords = (
   snapshot: AnalysisSnapshot,
   offset: number,
   prefix: CompletionPrefix,
-  before: string,
   anchorLocation: TemporaryStatementNode["location"]
 ): CompletionContext | undefined => {
-  const trimmed = before.trimEnd();
-  if (endsWithStatementKeyword(trimmed, "action") || trimmed === "action") {
+  const last = lastTokenOnLineBefore(snapshot, offset);
+  if (last === undefined || last.kind !== TokenKind.Identifier) {
+    return;
+  }
+
+  if (last.value === "action") {
     return { kind: "action-name", offset, prefix, snapshot };
   }
-  if (
-    endsWithStatementKeyword(trimmed, "condition") ||
-    trimmed === "condition" ||
-    /condition\s+not$/i.test(trimmed)
-  ) {
+  if (last.value === "not") {
+    const previous = previousTokenOnLine(snapshot, last);
+    if (
+      previous?.kind === TokenKind.Identifier &&
+      previous.value === "condition"
+    ) {
+      return { kind: "condition-name", offset, prefix, snapshot };
+    }
+  }
+  if (last.value === "condition") {
     return { kind: "condition-name", offset, prefix, snapshot };
   }
-  if (
-    endsWithStatementKeyword(trimmed, "temporary") ||
-    trimmed === "temporary"
-  ) {
+  if (last.value === "temporary") {
     return {
       kind: "temporary",
       offset,
@@ -475,7 +548,6 @@ export const resolveCompletionContext = (
     position.character
   );
   const prefix = findCompletionPrefix(snapshot, offset);
-  const before = lineTextBefore(snapshot, offset);
 
   const hits: Hit[] = [];
   for (const element of snapshot.ast.elements) {
@@ -536,7 +608,6 @@ export const resolveCompletionContext = (
       snapshot,
       offset,
       prefix,
-      before,
       statement.location
     );
     if (body !== undefined) {
@@ -549,13 +620,7 @@ export const resolveCompletionContext = (
       best.kind === "trigger"
         ? (best.node as TriggerElementNode).location
         : (best.node as BeginStatementNode).location;
-    const body = resolveTriggerBodyKeywords(
-      snapshot,
-      offset,
-      prefix,
-      before,
-      anchor
-    );
+    const body = resolveTriggerBodyKeywords(snapshot, offset, prefix, anchor);
     if (body !== undefined) {
       return body;
     }
@@ -577,7 +642,7 @@ export const resolveCompletionContext = (
     };
   }
 
-  if (isTriggerHeaderLineText(before)) {
+  if (isTriggerHeaderLine(snapshot, offset)) {
     return { kind: "trigger-name", offset, prefix, snapshot };
   }
 

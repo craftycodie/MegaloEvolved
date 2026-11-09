@@ -13,11 +13,15 @@ import type { AnalysisSnapshot } from "src/language-service/snapshot";
 
 /**
  * Context-aware Megalo completions at a 0-based LSP position.
+ * Disabled when `reservedKeywords` is off (MegaloEdit profile).
  */
 export const completionsAtPosition = (
   snapshot: AnalysisSnapshot,
   position: { line: number; character: number }
 ): CompletionItem[] => {
+  if (!snapshot.megacrowExtensions.reservedKeywords) {
+    return [];
+  }
   const ctx = resolveCompletionContext(snapshot, position);
   switch (ctx.kind) {
     case "top-level":

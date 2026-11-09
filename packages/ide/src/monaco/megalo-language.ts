@@ -327,9 +327,14 @@ const moveCursorIntoInsertedBlockBody = (editor: MegaloCodeEditor): void => {
       continue;
     }
     // `trigger` / `for_each` still need a type on the header; `variables`
-    // still needs a scope. Leave the cursor there so suggest can pick it.
+    // still needs a scope; named blocks still need a same-line name.
+    // Leave the cursor there so the user (or suggest) can fill it in.
     const header = model.getLineContent(headerLine);
-    if (/^\s*(trigger|for_each|variables)\s*$/i.test(header)) {
+    if (
+      /^\s*(trigger|for_each|variables|map_object|loadout|loadout_palette|requisition_palette|string_table)(\s+\S*)?\s*$/i.test(
+        header
+      )
+    ) {
       continue;
     }
     editor.setPosition({
@@ -560,8 +565,12 @@ export function registerMegaloLanguage(monaco: Monaco): void {
             const rawInsert = item.insertText ?? item.label;
             const isSnippet = item.insertTextFormat === 2 /* Snippet */;
             const hasNamedTabstop = /\$\{\d+/.test(rawInsert);
+            // `${1:name}` already seeds the header; don't reopen suggest on it.
+            const hasPlaceholderDefault = /\$\{\d+:/.test(rawInsert);
             // Monaco does not reliably place `$1` on a new line. Insert the
             // block as plain text and move the cursor in BLOCK_SNIPPET_COMMAND.
+            // Named header tabstops (`${1}` / `${1:name}`) stay as snippets so
+            // the cursor lands on the name/kind field instead of jumping to the body.
             const insertText =
               isSnippet && !hasNamedTabstop
                 ? indentBlockInsert(
@@ -576,12 +585,12 @@ export function registerMegaloLanguage(monaco: Monaco): void {
                   arguments?: unknown[];
                 }
               | undefined;
-            if (isSnippet) {
+            if (isSnippet && !hasNamedTabstop) {
               command = {
                 id: BLOCK_SNIPPET_COMMAND,
                 title: "Move into block body",
               };
-            } else if (item.command) {
+            } else if (item.command && !hasPlaceholderDefault) {
               command = {
                 id: item.command.command,
                 title: item.command.title,

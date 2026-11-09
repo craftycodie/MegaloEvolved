@@ -307,6 +307,9 @@ export const startMegacrowLanguageServer = (connection: Connection): void => {
   });
 
   connection.onHover(async (params) => {
+    if (!session.megacrowExtensions.reservedKeywords) {
+      return null;
+    }
     const uri = params.textDocument.uri;
     const doc = documents.get(uri);
     if (!doc) {
@@ -332,6 +335,9 @@ export const startMegacrowLanguageServer = (connection: Connection): void => {
   });
 
   connection.onCompletion(async (params) => {
+    if (!session.megacrowExtensions.reservedKeywords) {
+      return [];
+    }
     const uri = params.textDocument.uri;
     const doc = documents.get(uri);
     if (!doc) {

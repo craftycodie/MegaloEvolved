@@ -38,9 +38,12 @@ const buildSnapshot = (
   megacrowExtensions?: Partial<MegacrowExtensions>,
   compilerSettings?: Partial<CompilerSettings>
 ): AnalysisSnapshot => {
+  const resolvedExtensions = resolveMegacrowExtensions(
+    megacrowExtensions ?? ALL_MEGACROW_EXTENSIONS
+  );
   const frontend = new MegaloCompilerContext(
     version,
-    resolveMegacrowExtensions(megacrowExtensions ?? ALL_MEGACROW_EXTENSIONS),
+    resolvedExtensions,
     compilerSettings
   );
   const diagnostics = new Diagnostics();
@@ -57,6 +60,7 @@ const buildSnapshot = (
       ...diagnostics.getWarnings(),
     ],
     lineStarts: computeLineStarts(source),
+    megacrowExtensions: resolvedExtensions,
     version,
   };
 };
@@ -97,11 +101,12 @@ export const analyzeDocument = async (
   }
 
   const { version } = options;
+  const resolvedExtensions = resolveMegacrowExtensions(
+    options.megacrowExtensions ?? ALL_MEGACROW_EXTENSIONS
+  );
   const frontend = new MegaloCompilerContext(
     version,
-    resolveMegacrowExtensions(
-      options.megacrowExtensions ?? ALL_MEGACROW_EXTENSIONS
-    ),
+    resolvedExtensions,
     options.compilerSettings
   );
   const diagnostics = new Diagnostics();
@@ -122,6 +127,7 @@ export const analyzeDocument = async (
       ...diagnostics.getWarnings(),
     ],
     lineStarts: computeLineStarts(source),
+    megacrowExtensions: resolvedExtensions,
     version,
   };
 };

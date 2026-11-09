@@ -48,11 +48,16 @@ const sourceLocationToRange = (location: {
 
 /**
  * Context-aware Megalo hover at a 0-based LSP position.
+ * Disabled when `reservedKeywords` is off (MegaloEdit profile).
  */
 export const hoverAtPosition = (
   snapshot: AnalysisSnapshot,
   position: { line: number; character: number }
 ): HoverResult | null => {
+  if (!snapshot.megacrowExtensions.reservedKeywords) {
+    return null;
+  }
+
   const target = resolveHoverTarget(snapshot, position);
   if (target === null) {
     return null;

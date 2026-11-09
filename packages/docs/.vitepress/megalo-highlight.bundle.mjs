@@ -12104,9 +12104,12 @@ var loadObjectListsForVersion = (version2) => {
 
 // ../megalo/src/language-service/analyze.ts
 var buildSnapshot = (source, version2, objectLists5, megacrowExtensions, compilerSettings) => {
+  const resolvedExtensions = resolveMegacrowExtensions(
+    megacrowExtensions ?? ALL_MEGACROW_EXTENSIONS
+  );
   const frontend = new MegaloCompilerContext(
     version2,
-    resolveMegacrowExtensions(megacrowExtensions ?? ALL_MEGACROW_EXTENSIONS),
+    resolvedExtensions,
     compilerSettings
   );
   const diagnostics = new Diagnostics();
@@ -12122,6 +12125,7 @@ var buildSnapshot = (source, version2, objectLists5, megacrowExtensions, compile
       ...diagnostics.getWarnings()
     ],
     lineStarts: computeLineStarts(source),
+    megacrowExtensions: resolvedExtensions,
     version: version2
   };
 };

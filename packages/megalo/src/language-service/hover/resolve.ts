@@ -1,4 +1,3 @@
-import type { SourceCodeLocation } from "src/diagnostics";
 import {
   type ASTElementNode,
   ElementKind,
@@ -13,7 +12,7 @@ import type { ActionStatementNode } from "src/frontend/abstract-syntax-tree/elem
 import type { ConditionStatementNode } from "src/frontend/abstract-syntax-tree/elements/trigger/condition";
 import { SyntaxKind } from "src/frontend/abstract-syntax-tree/kinds";
 import type { SymbolTableEntry } from "src/frontend/symbol-table";
-import { TokenKind } from "src/frontend/tokens";
+import { type Token, TokenKind } from "src/frontend/tokens";
 import { lookupHoverContribution } from "src/language-service/hover/registry";
 import type { HoverTarget } from "src/language-service/hover/types";
 import {
@@ -22,9 +21,6 @@ import {
   positionToOffset,
 } from "src/language-service/position";
 import type { AnalysisSnapshot } from "src/language-service/snapshot";
-
-const spanLength = (location: SourceCodeLocation): number =>
-  Math.max(0, location.end.localOffset - location.start.localOffset);
 
 const KEYWORD_IDS = new Set([
   "action",
@@ -36,29 +32,37 @@ const KEYWORD_IDS = new Set([
   "not",
 ]);
 
-interface Candidate {
-  span: number;
-  target: HoverTarget;
-}
-
-const pushLocation = (candidates: Candidate[], target: HoverTarget): void => {
-  if (!isRootDocumentLocation(target.range)) {
-    return;
+/** Token containing `offset`, if any (root-document tokens only). */
+const tokenAtOffset = (
+  snapshot: AnalysisSnapshot,
+  offset: number
+): Token | undefined => {
+  for (const token of snapshot.tokens) {
+    if (!isRootDocumentLocation(token.location)) {
+      continue;
+    }
+    if (locationContainsOffset(token.location, offset)) {
+      return token;
+    }
   }
-  candidates.push({ target, span: spanLength(target.range) });
+  return;
 };
 
-const walkStatements = (
+const rootTarget = (
+  range: HoverTarget["range"],
+  target: HoverTarget
+): HoverTarget | null => (isRootDocumentLocation(range) ? target : null);
+
+const findStatementHover = (
   statements: readonly TriggerStatementNode[],
-  offset: number,
-  candidates: Candidate[]
-): void => {
+  offset: number
+): HoverTarget | null => {
   for (const statement of statements) {
     switch (statement.kind) {
       case SyntaxKind.ACTION: {
         const action = statement as ActionStatementNode;
         if (locationContainsOffset(action.name.location, offset)) {
-          pushLocation(candidates, {
+          return rootTarget(action.name.location, {
             kind: "action",
             id: action.name.value,
             range: action.name.location,
@@ -69,7 +73,7 @@ const walkStatements = (
       case SyntaxKind.CONDITION: {
         const condition = statement as ConditionStatementNode;
         if (locationContainsOffset(condition.name.location, offset)) {
-          pushLocation(candidates, {
+          return rootTarget(condition.name.location, {
             kind: "condition",
             id: condition.name.value,
             range: condition.name.location,
@@ -80,31 +84,38 @@ const walkStatements = (
       case SyntaxKind.BEGIN: {
         const begin = statement as BeginStatementNode;
         if (locationContainsOffset(begin.keywordLocation, offset)) {
-          pushLocation(candidates, {
+          return rootTarget(begin.keywordLocation, {
             kind: "keyword",
             id: "begin",
             range: begin.keywordLocation,
           });
         }
-        walkStatements(begin.statements, offset, candidates);
+        const nested = findStatementHover(begin.statements, offset);
+        if (nested !== null) {
+          return nested;
+        }
         break;
       }
       case SyntaxKind.FOR_EACH: {
         const forEach = statement as ForEachStatementNode;
         if (locationContainsOffset(forEach.name.location, offset)) {
-          pushLocation(candidates, {
+          return rootTarget(forEach.name.location, {
             kind: "action",
             id: forEach.name.value,
             range: forEach.name.location,
           });
         }
-        walkStatements(forEach.statements, offset, candidates);
+        const nested = findStatementHover(forEach.statements, offset);
+        if (nested !== null) {
+          return nested;
+        }
         break;
       }
       default:
         break;
     }
   }
+  return null;
 };
 
 export const elementKeywordId = (
@@ -155,70 +166,43 @@ export const elementKeywordId = (
   }
 };
 
-const targetRank = (target: HoverTarget): number => {
-  switch (target.kind) {
-    case "action":
-    case "condition":
-    case "param":
-      return 0;
-    case "element":
-      return 1;
-    case "keyword":
-      return 2;
-    case "symbol":
-      return 3;
-    default:
-      return 9;
-  }
-};
-
-const pushElementParamCandidates = (
-  snapshot: AnalysisSnapshot,
+const resolveElementParam = (
   element: ASTElementNode,
   elementId: string,
   offset: number,
-  candidates: Candidate[]
-): void => {
+  token: Token | undefined
+): HoverTarget | null => {
   if (!locationContainsOffset(element.location, offset)) {
-    return;
+    return null;
   }
   if (locationContainsOffset(element.keywordLocation, offset)) {
-    return;
+    return null;
   }
-
-  for (const token of snapshot.tokens) {
-    if (token.kind !== TokenKind.Identifier) {
-      continue;
-    }
-    if (!isRootDocumentLocation(token.location)) {
-      continue;
-    }
-    if (!locationContainsOffset(token.location, offset)) {
-      continue;
-    }
-    if (
-      !locationContainsOffset(
-        element.location,
-        token.location.start.localOffset
-      )
-    ) {
-      continue;
-    }
-    const paramId = `${elementId}.${token.value}`;
-    if (lookupHoverContribution("param", paramId) === undefined) {
-      continue;
-    }
-    pushLocation(candidates, {
-      kind: "param",
-      id: paramId,
-      range: token.location,
-    });
+  if (token === undefined || token.kind !== TokenKind.Identifier) {
+    return null;
   }
+  if (
+    !locationContainsOffset(element.location, token.location.start.localOffset)
+  ) {
+    return null;
+  }
+  const paramId = `${elementId}.${token.value}`;
+  if (lookupHoverContribution("param", paramId) === undefined) {
+    return null;
+  }
+  return rootTarget(token.location, {
+    kind: "param",
+    id: paramId,
+    range: token.location,
+  });
 };
 
 /**
- * Resolve what the cursor is over for hover (tightest matching span wins).
- * Prefers language constructs over symbol references when spans tie.
+ * Resolve what the cursor is over for hover via ordered first-match.
+ * Safe only under `reservedKeywords`: a token cannot be both a keyword and a
+ * user symbol, so element → keyword → symbol is mutually exclusive per token.
+ * Element keywords are checked before bare KEYWORD_IDS so `trigger` stays an
+ * element hover.
  */
 export const resolveHoverTarget = (
   snapshot: AnalysisSnapshot,
@@ -230,20 +214,25 @@ export const resolveHoverTarget = (
     position.line,
     position.character
   );
-
-  const candidates: Candidate[] = [];
+  const token = tokenAtOffset(snapshot, offset);
 
   for (const element of snapshot.ast.elements) {
     if (element.elementKind === ElementKind.TRIGGER) {
       const trigger = element as TriggerElementNode;
       if (locationContainsOffset(trigger.keywordLocation, offset)) {
-        pushLocation(candidates, {
+        const target = rootTarget(trigger.keywordLocation, {
           kind: "element",
           id: "trigger",
           range: trigger.keywordLocation,
         });
+        if (target !== null) {
+          return target;
+        }
       }
-      walkStatements(trigger.statements, offset, candidates);
+      const statementTarget = findStatementHover(trigger.statements, offset);
+      if (statementTarget !== null) {
+        return statementTarget;
+      }
       continue;
     }
 
@@ -252,33 +241,31 @@ export const resolveHoverTarget = (
       continue;
     }
     if (locationContainsOffset(element.keywordLocation, offset)) {
-      pushLocation(candidates, {
+      const target = rootTarget(element.keywordLocation, {
         kind: "element",
         id,
         range: element.keywordLocation,
       });
+      if (target !== null) {
+        return target;
+      }
     }
-    pushElementParamCandidates(snapshot, element, id, offset, candidates);
+    const param = resolveElementParam(element, id, offset, token);
+    if (param !== null) {
+      return param;
+    }
   }
 
-  for (const token of snapshot.tokens) {
-    if (token.kind !== TokenKind.Identifier) {
-      continue;
-    }
-    if (!KEYWORD_IDS.has(token.value)) {
-      continue;
-    }
-    if (!isRootDocumentLocation(token.location)) {
-      continue;
-    }
-    if (!locationContainsOffset(token.location, offset)) {
-      continue;
-    }
-    pushLocation(candidates, {
+  if (
+    token !== undefined &&
+    token.kind === TokenKind.Identifier &&
+    KEYWORD_IDS.has(token.value)
+  ) {
+    return {
       kind: "keyword",
       id: token.value,
       range: token.location,
-    });
+    };
   }
 
   for (const entry of snapshot.ast.symbolTable.toArray() as SymbolTableEntry[]) {
@@ -287,21 +274,14 @@ export const resolveHoverTarget = (
         isRootDocumentLocation(reference) &&
         locationContainsOffset(reference, offset)
       ) {
-        pushLocation(candidates, {
+        return {
           kind: "symbol",
           entry,
           range: reference,
-        });
+        };
       }
     }
   }
 
-  if (candidates.length === 0) {
-    return null;
-  }
-
-  candidates.sort(
-    (a, b) => a.span - b.span || targetRank(a.target) - targetRank(b.target)
-  );
-  return candidates[0]!.target;
+  return null;
 };
