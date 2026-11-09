@@ -1,3 +1,4 @@
+import { _event_error, _event_warning, event } from "@blamnetwork/datamine";
 import type { ObjectLists } from "@megacrow/megalo";
 import {
   getQuotedPathCompletionQuery,
@@ -68,8 +69,11 @@ export const startMegacrowLanguageServer = (connection: Connection): void => {
   const applyConfig = (raw: unknown, source: string): boolean => {
     const parsed = parseConfig(raw);
     if (!parsed.ok) {
-      console.error(
-        `[megacrow-lsp] ignored invalid configuration from ${source}: ${parsed.error}`
+      event(
+        _event_error,
+        "lsp: ignored invalid configuration from %s: %s",
+        source,
+        parsed.error
       );
       return false;
     }
@@ -437,7 +441,7 @@ export const startMegacrowLanguageServer = (connection: Connection): void => {
           return pathCompletionsFromEntries(pathQuery, listed.entries);
         }
       } catch (error) {
-        console.warn("[megacrow-lsp] listDirectory failed", error);
+        event(_event_warning, "lsp: listDirectory failed: %s", String(error));
       }
       return [];
     }

@@ -1,3 +1,4 @@
+import { _event_warning, event } from "@blamnetwork/datamine";
 import { isTauriRuntime } from "../desktop/tauriRuntime";
 import {
   isNewerBuild,
@@ -49,6 +50,11 @@ export async function fetchGithubReleases(): Promise<GithubReleaseInfo[]> {
       },
     });
     if (!response.ok) {
+      event(
+        _event_warning,
+        "ide:app: update check failed: HTTP %d",
+        response.status
+      );
       return [];
     }
     const data: unknown = await response.json();
@@ -63,7 +69,8 @@ export async function fetchGithubReleases(): Promise<GithubReleaseInfo[]> {
       }
     }
     return releases;
-  } catch {
+  } catch (error) {
+    event(_event_warning, "ide:app: update check failed: %s", String(error));
     return [];
   }
 }

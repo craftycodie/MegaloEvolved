@@ -16,6 +16,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@blamnetwork/datamine": "^1.1.0",
     "@megacrow/megalo": "*",
     "vscode-languageserver": "^9.0.1",
     "vscode-languageserver-protocol": "^3.17.5",

@@ -1,4 +1,10 @@
 import {
+  _event_error,
+  _event_status,
+  _event_verbose,
+  event,
+} from "@blamnetwork/datamine";
+import {
   MEGACROW_LIST_DIRECTORY_METHOD,
   MEGACROW_RESET_SESSION_METHOD,
   MEGACROW_RESOLVE_BASE_FILE_METHOD,
@@ -46,6 +52,8 @@ export {
 type DiagnosticsListener = (uri: string, diagnostics: Diagnostic[]) => void;
 
 let connectionPromise: Promise<MessageConnection> | null = null;
+/** Workers started this session; above 1 means the server was restarted. */
+let workerStarts = 0;
 const diagnosticsListeners = new Set<DiagnosticsListener>();
 
 function emitDiagnostics(uri: string, diagnostics: Diagnostic[]): void {
@@ -68,7 +76,11 @@ function dropConnection(reason: unknown): void {
   if (!connectionPromise) {
     return;
   }
-  console.error("Megalo LSP connection lost; restarting on next use:", reason);
+  event(
+    _event_error,
+    "ide:lsp: Megalo LSP connection lost; restarting on next use: %s",
+    String(reason)
+  );
   connectionPromise = null;
   const openUris = [...syncedDocuments.keys()];
   syncedDocuments.clear();
@@ -78,6 +90,9 @@ function dropConnection(reason: unknown): void {
 }
 
 async function connect(): Promise<MessageConnection> {
+  workerStarts += 1;
+  const started = performance.now();
+  event(_event_verbose, "ide:lsp: starting worker (start %d)", workerStarts);
   const worker = new Worker(
     new URL("../workers/megaloLspWorker.ts", import.meta.url),
     { type: "module" }
@@ -141,6 +156,12 @@ async function connect(): Promise<MessageConnection> {
     throw error;
   }
   connection.sendNotification("initialized", {});
+  event(
+    _event_status,
+    "ide:lsp: connected in %d ms (start %d)",
+    Math.round(performance.now() - started),
+    workerStarts
+  );
   return connection;
 }
 
@@ -174,6 +195,7 @@ export async function lspSyncDocument(
   const version = nextDocumentVersion();
   syncedDocuments.set(uri, { text, version });
   if (!synced) {
+    event(_event_verbose, "ide:lsp: didOpen %s", uri);
     connection.sendNotification("textDocument/didOpen", {
       textDocument: { uri, languageId: "megalo", version, text },
     });
@@ -191,6 +213,7 @@ export async function lspCloseDocument(uri: string): Promise<void> {
     return;
   }
   emitDiagnostics(uri, []);
+  event(_event_verbose, "ide:lsp: didClose %s", uri);
   const connection = await getConnection();
   connection.sendNotification("textDocument/didClose", {
     textDocument: { uri },

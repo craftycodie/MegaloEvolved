@@ -1,4 +1,5 @@
 import { ipcCliComplete, ipcCliLog, ipcGetCliArgs } from "../desktop/ipc";
+import { startEventLog } from "../log";
 import { runCli } from "./runCli";
 import { createTauriFilesystem } from "./tauriFilesystem";
 
@@ -14,12 +15,17 @@ function hookConsole(): void {
       void ipcCliLog(level, line);
     };
 
+  // The IDE log (src/log) writes through all five methods.
   console.log = forward("log");
+  console.info = forward("log");
+  console.debug = forward("log");
+  console.warn = forward("error");
   console.error = forward("error");
 }
 
 async function main(): Promise<void> {
   hookConsole();
+  startEventLog();
   const args = await ipcGetCliArgs();
   const filesystem = createTauriFilesystem();
   const code = await runCli(args, filesystem);

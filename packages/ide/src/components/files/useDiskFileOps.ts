@@ -25,13 +25,13 @@ import {
   resolveTauriMegaloFilePath,
 } from "../../files";
 import { isObjectListsPath } from "../../gametype";
-import { translateDiskError } from "../../localization";
 import {
   canRegenerateObjectListsWithTool,
   defaultObjectListText,
   findLocalDiskNode,
   getEditingKitRoot,
 } from "../../workspace";
+import { fileErrorMessage } from "./fileErrorMessage";
 import { pruneNestedPaths } from "./treeUtils";
 import type {
   FilesContextMenuState,
@@ -143,7 +143,7 @@ export function useDiskFileOps({
         }
         onOpenSource(text, formatLocalDiskPath(path), { absoluteFilePath });
       } catch (error) {
-        setLocalError(translateDiskError(error));
+        setLocalError(fileErrorMessage(error));
       }
     },
     [localRoot, localTree, megaloVersion, onOpenSource, setLocalError]
@@ -168,7 +168,7 @@ export function useDiskFileOps({
         setRenamingPathKey(pathKey(createdPath));
         await openLocalFile(createdPath);
       } catch (error) {
-        setLocalError(translateDiskError(error));
+        setLocalError(fileErrorMessage(error));
       }
     },
     [
@@ -202,7 +202,7 @@ export function useDiskFileOps({
         await refreshLocal();
         setRenamingPathKey(pathKey(createdPath));
       } catch (error) {
-        setLocalError(translateDiskError(error));
+        setLocalError(fileErrorMessage(error));
       }
     },
     [
@@ -239,7 +239,7 @@ export function useDiskFileOps({
           onFileRenamed(oldDisplay, newDisplay, absoluteFilePath);
         }
       } catch (error) {
-        setLocalError(translateDiskError(error));
+        setLocalError(fileErrorMessage(error));
         setRenamingPathKey(null);
       }
     },
@@ -286,7 +286,7 @@ export function useDiskFileOps({
         }
         return "moved";
       } catch (error) {
-        setLocalError(translateDiskError(error));
+        setLocalError(fileErrorMessage(error));
         return "error";
       }
     },
@@ -353,7 +353,7 @@ export function useDiskFileOps({
         setRenamingPathKey(null);
         await refreshLocal();
       } catch (error) {
-        setLocalError(translateDiskError(error));
+        setLocalError(fileErrorMessage(error));
       }
     },
     [localRoot, onFileDeleted, refreshLocal, setLocalError, setRenamingPathKey]
@@ -378,7 +378,7 @@ export function useDiskFileOps({
         await refreshLocal();
         await openLocalFile(createdPath);
       } catch (error) {
-        setLocalError(translateDiskError(error));
+        setLocalError(fileErrorMessage(error));
       }
     },
     [
@@ -416,7 +416,7 @@ export function useDiskFileOps({
         }
       }
     } catch (error) {
-      setLocalError(translateDiskError(error));
+      setLocalError(fileErrorMessage(error));
     }
   }, [
     activeFileName,

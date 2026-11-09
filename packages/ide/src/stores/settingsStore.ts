@@ -1,3 +1,9 @@
+import {
+  _event_error,
+  _event_status,
+  _event_warning,
+  event,
+} from "@blamnetwork/datamine";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 import { APP_NAME } from "../app/constants";
@@ -91,7 +97,10 @@ export function updateSettings(
   const state = settingsStore.getState();
   if (state.status !== "ready") {
     // Saving now would overwrite the real settings file with defaults.
-    console.warn("Ignoring a settings update before settings finished loading");
+    event(
+      _event_warning,
+      "ide:settings: Ignoring a settings update before settings finished loading"
+    );
     return Promise.resolve();
   }
   const current = state.settings;
@@ -106,7 +115,12 @@ export function updateSettings(
     )
     .then(() => undefined)
     .catch((error: unknown) => {
-      console.error(`Failed to persist ${APP_NAME} settings:`, error);
+      event(
+        _event_error,
+        "ide:settings: Failed to persist %s settings: %s",
+        APP_NAME,
+        String(error)
+      );
       throw error;
     });
 }
@@ -139,11 +153,22 @@ let bootstrapPromise: Promise<void> | null = null;
 export function bootstrapSettings(): Promise<void> {
   bootstrapPromise ??= bootstrapMegacrowSettings()
     .then(({ settings, needsAddWorkspace }) => {
+      event(
+        _event_status,
+        "ide:settings: loaded settings: %d workspaces%s",
+        settings.workspaces.length,
+        needsAddWorkspace ? ", asking for one" : ""
+      );
       applySettings(settings);
       settingsStore.setState({ needsAddWorkspace, status: "ready" });
     })
     .catch((error: unknown) => {
-      console.error(`Failed to bootstrap ${APP_NAME} settings:`, error);
+      event(
+        _event_error,
+        "ide:settings: Failed to bootstrap %s settings: %s",
+        APP_NAME,
+        String(error)
+      );
       applySettings(defaultMegacrowSettings(), { activeWorkspace: null });
       settingsStore.setState({
         needsAddWorkspace: isTauriRuntime(),

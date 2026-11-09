@@ -1,3 +1,4 @@
+import { _event_warning, event } from "@blamnetwork/datamine";
 import type { MegaloCompilerContext } from "src/context";
 import type { Diagnostics, SourceLocation } from "src/diagnostics";
 import type { AST } from "src/frontend/abstract-syntax-tree";
@@ -117,7 +118,11 @@ export class Lowerer {
         if (elementLowerer) {
           elementLowerer(element, lowerContext);
         } else {
-          console.warn(`lowerer for ${element.elementKind} NYI`);
+          event(
+            _event_warning,
+            "megalo: lowerer for %s NYI",
+            element.elementKind
+          );
         }
       });
     }

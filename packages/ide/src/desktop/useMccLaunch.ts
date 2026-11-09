@@ -1,3 +1,4 @@
+import { _event_error, _event_status, event } from "@blamnetwork/datamine";
 import { isMccMegaloVersion } from "@megacrow/megalo";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -50,10 +51,15 @@ export function useMccLaunch({ workspace }: Options) {
     }
     if (showCustomLaunch) {
       setLaunching(true);
+      event(_event_status, "ide:desktop: launching %s", launchCommand);
       try {
         await launchGameCommand(launchCommand);
       } catch (error) {
-        console.error("Failed to launch game:", translateLaunchError(error));
+        event(
+          _event_error,
+          "ide:desktop: Failed to launch game: %s",
+          translateLaunchError(error)
+        );
       } finally {
         setLaunching(false);
       }
@@ -63,10 +69,15 @@ export function useMccLaunch({ workspace }: Options) {
       return;
     }
     setLaunching(true);
+    event(_event_status, "ide:desktop: launching Halo MCC");
     try {
       await launchMcc();
     } catch (error) {
-      console.error("Failed to launch Halo MCC:", translateLaunchError(error));
+      event(
+        _event_error,
+        "ide:desktop: Failed to launch Halo MCC: %s",
+        translateLaunchError(error)
+      );
     } finally {
       setLaunching(false);
     }

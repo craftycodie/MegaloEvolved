@@ -1,3 +1,4 @@
+import { _event_error, event } from "@blamnetwork/datamine";
 import {
   useCallback,
   useEffect,
@@ -7,6 +8,7 @@ import {
 } from "react";
 import { translateDiskError } from "../../localization";
 import { watchWorkspaceInput } from "../../workspace";
+import { fileErrorMessage } from "./fileErrorMessage";
 
 export interface WatchedListing<T> {
   data: T;
@@ -56,7 +58,7 @@ export function useWatchedListing<T>(options: {
     } catch (error) {
       if (pathRef.current === target) {
         setData(empty);
-        setListError(translateDiskError(error));
+        setListError(fileErrorMessage(error));
       }
     }
   }, [empty]);
@@ -108,7 +110,12 @@ export function useWatchedListing<T>(options: {
         }
       })
       .catch((error: unknown) => {
-        console.error(`Failed to watch ${path}:`, error);
+        event(
+          _event_error,
+          "ide:files: Failed to watch %s: %s",
+          path,
+          String(error)
+        );
         if (!disposed) {
           setWatchError(translateDiskError(error));
         }

@@ -1,3 +1,9 @@
+import {
+  _event_error,
+  _event_status,
+  _event_verbose,
+  event,
+} from "@blamnetwork/datamine";
 import { setLocale as setCompilerLocale } from "@megacrow/megalo";
 import {
   compilerSettingsFromApp,
@@ -32,6 +38,21 @@ function syncAppSettings(appSettings: AppSettings): void {
   });
 }
 
+function logWorkspace(workspace: SettingsState["activeWorkspace"]): void {
+  if (!workspace) {
+    event(_event_status, "ide:settings: no active workspace");
+    return;
+  }
+  event(
+    _event_status,
+    "ide:settings: active workspace %s (%s, Megalo %s) at %s",
+    workspace.name,
+    workspace.type,
+    workspace.megaloVersion,
+    workspace.inputPath
+  );
+}
+
 let objectListRequest = 0;
 
 /** Object list names for the active version; only the newest request lands. */
@@ -46,11 +67,21 @@ function loadObjectListNames(
   lspVersionConfiguration(megaloVersion)
     .then((config) => {
       if (request === objectListRequest) {
+        event(
+          _event_verbose,
+          "ide:settings: Megalo %s has %d object lists",
+          megaloVersion,
+          config.objectListNames.length
+        );
         setObjectListNames(config.objectListNames);
       }
     })
     .catch((error: unknown) => {
-      console.error("Failed to load Megalo version configuration:", error);
+      event(
+        _event_error,
+        "ide:settings: Failed to load Megalo version configuration: %s",
+        String(error)
+      );
     });
 }
 
@@ -70,6 +101,9 @@ export function installSettingsEffects(): () => void {
       syncAppSettings(state.appSettings);
     }
     if (state.activeWorkspace !== previous.activeWorkspace) {
+      if (state.activeWorkspace?.id !== previous.activeWorkspace?.id) {
+        logWorkspace(state.activeWorkspace);
+      }
       syncMegaloWorkspace(state.activeWorkspace);
       if (
         state.activeWorkspace?.megaloVersion !==

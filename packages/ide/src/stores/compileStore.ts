@@ -1,3 +1,9 @@
+import {
+  _event_error,
+  _event_status,
+  _event_verbose,
+  event,
+} from "@blamnetwork/datamine";
 import type { ObjectLists } from "@megacrow/megalo";
 import { MEGALO_VERSIONS } from "@megacrow/megalo";
 import { useStore } from "zustand";
@@ -69,6 +75,7 @@ let exportRun = 0;
 
 function finish(run: number, analysis: SourceAnalysis): boolean {
   if (run !== analysisRun) {
+    event(_event_verbose, "ide:compile: dropped stale result (run %d)", run);
     return false;
   }
   compileStore.setState({ analysis, pending: false });
@@ -94,7 +101,11 @@ function writeHotReload(analysis: SourceAnalysis): void {
   }
   lastHotReloadBytes = bytes;
   writeMccHotReloadMglo(bytes).catch((error: unknown) => {
-    console.error("Failed to write MCC hot-reload .mglo:", error);
+    event(
+      _event_error,
+      "ide:desktop: Failed to write MCC hot-reload .mglo: %s",
+      String(error)
+    );
   });
 }
 
@@ -176,7 +187,17 @@ export async function analyzeDocument(
       : state.analysis,
     pending: true,
   }));
+  const started = performance.now();
   const result = await requestCompileViaLsp(text, key);
+  event(
+    _event_verbose,
+    "ide:compile: %s compiled in %d ms: %s, %d errors, %d bytes",
+    key,
+    Math.round(performance.now() - started),
+    result.compileState,
+    result.errorCount,
+    result.compiledByteLength ?? 0
+  );
   finish(
     run,
     fresh
@@ -283,6 +304,13 @@ export async function exportGametype(
       });
       return;
     }
+    event(
+      _event_status,
+      "ide:compile: saved %s gametype (%d bytes) to %s",
+      format,
+      output.length,
+      saved.path ?? downloadName
+    );
     compileStore.setState({
       analysis: {
         ...analysis,
@@ -294,7 +322,11 @@ export async function exportGametype(
     });
   } catch (error) {
     if (run === exportRun) {
-      console.error("Failed to save gametype:", error);
+      event(
+        _event_error,
+        "ide:compile: Failed to save gametype: %s",
+        String(error)
+      );
       showError(String(error));
     }
   }
@@ -344,6 +376,13 @@ export async function buildVariant(target: CompileTarget): Promise<void> {
     if (run !== exportRun) {
       return;
     }
+    event(
+      _event_status,
+      "ide:compile: built %s (%d bytes) into %s",
+      fileName,
+      output.length,
+      workspace.outputPath
+    );
     compileStore.setState({
       analysis: {
         ...analysis,
@@ -356,6 +395,12 @@ export async function buildVariant(target: CompileTarget): Promise<void> {
     });
     bumpLocalDiskRevision();
   } catch (error) {
+    event(
+      _event_error,
+      "ide:compile: failed to write build outputs for %s: %s",
+      fileName,
+      String(error)
+    );
     if (run === exportRun) {
       compileStore.setState({
         analysis: {

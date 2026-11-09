@@ -11,8 +11,8 @@ import {
   writeFileClipboard,
 } from "../../files";
 import { isObjectListsPath } from "../../gametype";
-import { translateDiskError } from "../../localization";
 import { findLocalDiskNode } from "../../workspace";
+import { fileErrorMessage } from "./fileErrorMessage";
 import type { useDiskFileOps } from "./useDiskFileOps";
 import type { useOpfsFileOps } from "./useOpfsFileOps";
 
@@ -119,8 +119,7 @@ export function useFilesPanelContextMenu({
         }
         await refreshBuilds();
       } catch (error) {
-        setBuildsError(translateDiskError(error));
-        console.error("Failed to delete built gametype(s):", error);
+        setBuildsError(fileErrorMessage(error));
       }
     },
     [outputPath, refreshBuilds, setBuildsError]
@@ -171,11 +170,11 @@ export function useFilesPanelContextMenu({
           setPastePayload(payload);
         } catch (error) {
           if (source === "opfs") {
-            opfsOps.setOpfsError(translateDiskError(error));
+            opfsOps.setOpfsError(fileErrorMessage(error));
           } else if (source === "builds") {
-            setBuildsError(translateDiskError(error));
+            setBuildsError(fileErrorMessage(error));
           } else {
-            setLocalError(translateDiskError(error));
+            setLocalError(fileErrorMessage(error));
           }
         }
       })();
@@ -203,9 +202,9 @@ export function useFilesPanelContextMenu({
           await writeClipboardText(absolutes.join("\n"));
         } catch (error) {
           if (source === "builds") {
-            setBuildsError(translateDiskError(error));
+            setBuildsError(fileErrorMessage(error));
           } else {
-            setLocalError(translateDiskError(error));
+            setLocalError(fileErrorMessage(error));
           }
         }
       })();
@@ -289,9 +288,9 @@ export function useFilesPanelContextMenu({
               await revealInFileManager(absolute);
             } catch (error) {
               if (source === "builds") {
-                setBuildsError(translateDiskError(error));
+                setBuildsError(fileErrorMessage(error));
               } else {
-                setLocalError(translateDiskError(error));
+                setLocalError(fileErrorMessage(error));
               }
             }
           })();

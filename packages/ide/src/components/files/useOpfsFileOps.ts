@@ -24,12 +24,13 @@ import {
   renameOpfsGametype,
 } from "../../files";
 import { isObjectListsPath } from "../../gametype";
-import { translateDiskError, useT } from "../../localization";
+import { useT } from "../../localization";
 import {
   defaultObjectListText,
   findLocalDiskNode,
   withObjectListsFolder,
 } from "../../workspace";
+import { fileErrorMessage } from "./fileErrorMessage";
 import type { FilesContextMenuState } from "./useFilesPanelContextMenu";
 import { useOpfsFiles } from "./useOpfsFiles";
 
@@ -111,7 +112,7 @@ export function useOpfsFileOps({
         const source = (await readOpfsGametypeSource(name)) ?? "";
         onOpenSource(source, name);
       } catch (error) {
-        setOpfsError(translateDiskError(error));
+        setOpfsError(fileErrorMessage(error));
       }
     },
     [onOpenSource, setOpfsError]
@@ -152,7 +153,7 @@ export function useOpfsFileOps({
         }
         setOpfsError(t("files_unsupported_file_type", { name: file.name }));
       } catch (error) {
-        setOpfsError(translateDiskError(error));
+        setOpfsError(fileErrorMessage(error));
       }
     },
     [onOpenSource, rejectBrowserMegaloSource, setOpfsError, t]
@@ -178,7 +179,7 @@ export function useOpfsFileOps({
       const source = (await readOpfsGametypeSource(name)) ?? "";
       onOpenSource(source, name);
     } catch (error) {
-      setOpfsError(translateDiskError(error));
+      setOpfsError(fileErrorMessage(error));
     }
   }, [onOpenSource, refreshOpfs, setOpfsError, setRenamingPathKey]);
 
@@ -197,7 +198,7 @@ export function useOpfsFileOps({
           onFileRenamed(fromName, toName, opfsGametypeLogicalPath(toName));
         }
       } catch (error) {
-        setOpfsError(translateDiskError(error));
+        setOpfsError(fileErrorMessage(error));
         setRenamingPathKey(null);
       }
     },
@@ -213,7 +214,7 @@ export function useOpfsFileOps({
         await refreshOpfs();
         onFileDeleted(name);
       } catch (error) {
-        setOpfsError(translateDiskError(error));
+        setOpfsError(fileErrorMessage(error));
       }
     },
     [onFileDeleted, refreshOpfs, setOpfsError, setRenamingPathKey]
@@ -225,7 +226,7 @@ export function useOpfsFileOps({
         setOpfsError(null);
         await writeClipboardText(opfsGametypeLogicalPath(name));
       } catch (error) {
-        setOpfsError(translateDiskError(error));
+        setOpfsError(fileErrorMessage(error));
       }
     },
     [setOpfsError]
@@ -242,7 +243,7 @@ export function useOpfsFileOps({
         await refreshOpfs();
         await openOpfsFile(name);
       } catch (error) {
-        setOpfsError(translateDiskError(error));
+        setOpfsError(fileErrorMessage(error));
       }
     },
     [openOpfsFile, refreshOpfs, setOpfsError]

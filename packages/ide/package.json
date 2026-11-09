@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@blamnetwork/blf": "^1.2.0-alpha.5",
+    "@blamnetwork/datamine": "^1.1.0",
     "@megacrow/lsp": "*",
     "@megacrow/megalo": "*",
     "@tauri-apps/api": "^2.11.1",

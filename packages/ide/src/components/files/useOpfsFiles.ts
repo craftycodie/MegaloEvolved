@@ -5,7 +5,7 @@ import {
   listOpfsGametypes,
   type OpfsGametypeEntry,
 } from "../../files";
-import { translateDiskError } from "../../localization";
+import { fileErrorMessage } from "./fileErrorMessage";
 
 export function useOpfsFiles(opfsRevision: number) {
   const opfsAvailable = isOpfsSupported() && !isTauriRuntime();
@@ -21,7 +21,7 @@ export function useOpfsFiles(opfsRevision: number) {
       setOpfsError(null);
       setOpfsFiles(await listOpfsGametypes());
     } catch (error) {
-      setOpfsError(translateDiskError(error));
+      setOpfsError(fileErrorMessage(error));
       setOpfsFiles([]);
     }
   }, [opfsAvailable]);

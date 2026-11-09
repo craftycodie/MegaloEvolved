@@ -1,3 +1,4 @@
+import { _event_warning, event } from "@blamnetwork/datamine";
 import { DOCS_PATHS, openDocs } from "../desktop";
 import { useT } from "../localization";
 
@@ -39,11 +40,16 @@ export function DocsHelpButton({ path, label }: Props) {
     <button
       aria-label={resolvedLabel}
       className="docs-help-btn"
-      onClick={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        void openDocs(path).catch(() => {
-          // Ignore open failures; the button is best-effort help.
+      onClick={(click) => {
+        click.preventDefault();
+        click.stopPropagation();
+        void openDocs(path).catch((error: unknown) => {
+          event(
+            _event_warning,
+            "ide:desktop: Failed to open docs page %s: %s",
+            path,
+            String(error)
+          );
         });
       }}
       onPointerDown={(event) => {

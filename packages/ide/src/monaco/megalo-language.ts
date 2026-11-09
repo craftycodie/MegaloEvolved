@@ -1,3 +1,4 @@
+import { _event_error, event } from "@blamnetwork/datamine";
 import {
   SEMANTIC_TOKEN_MODIFIERS,
   SEMANTIC_TOKEN_TYPES,
@@ -509,7 +510,7 @@ export function registerMegaloLanguage(monaco: Monaco): void {
             : undefined,
         };
       } catch (error) {
-        console.error("[megalo] hover failed", error);
+        event(_event_error, "ide:lsp: hover failed: %s", String(error));
         return null;
       }
     },
@@ -553,7 +554,7 @@ export function registerMegaloLanguage(monaco: Monaco): void {
             };
           });
         } catch (error) {
-          console.error("[megalo] definition failed", error);
+          event(_event_error, "ide:lsp: definition failed: %s", String(error));
           return [];
         }
       },
@@ -668,7 +669,7 @@ export function registerMegaloLanguage(monaco: Monaco): void {
             incomplete: true,
           };
         } catch (error) {
-          console.error("[megalo] completions failed", error);
+          event(_event_error, "ide:lsp: completions failed: %s", String(error));
           return { suggestions: [] };
         }
       },

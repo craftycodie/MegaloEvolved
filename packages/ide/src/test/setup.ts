@@ -1,4 +1,7 @@
 import { afterEach } from "vitest";
+import { startEventLog } from "../log";
+
+startEventLog();
 
 // jsdom has no PointerEvent, so `fireEvent.pointerDown` would build a plain
 // Event without `button`, `clientX` or `pointerId`. A MouseEvent subclass is

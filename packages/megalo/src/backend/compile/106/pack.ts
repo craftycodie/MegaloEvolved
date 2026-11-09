@@ -82,12 +82,26 @@ export const packCompiledVariant = (
   custom: c_game_engine_custom_variant,
   fileType: CompiledMegaloFileType
 ): { data: Uint8Array; variantByteLength: number } => {
+  const gameVariant = wrapGameVariant(custom);
+  const writeMpvr = (sizeInBytes: number): Uint8Array =>
+    write_blffile("big", [
+      s_blf_chunk_start_of_file.create("game variant"),
+      buildContentHeader(custom, sizeInBytes),
+      s_blf_chunk_game_variant.create(gameVariant),
+      new s_blf_chunk_end_of_file(),
+    ]);
+
+  // A game variant records the byte size of its mpvr file, in the content
+  // header and in its own metadata, whatever file type it is saved as. The
+  // mpvr chunk has a fixed size, so one trial pack gives the size.
+  const sizeInBytes = writeMpvr(0).length;
+  custom.m_base_variant.m_metadata.general.size_in_bytes = sizeInBytes;
+
   const mglo = encodeCustomVariantBitstream(custom);
   if (fileType === "mglo") {
     return { data: mglo, variantByteLength: mglo.length };
   }
 
-  const gameVariant = wrapGameVariant(custom);
   if (fileType === "gvar") {
     return {
       data: write_blffile("big", [
@@ -99,16 +113,7 @@ export const packCompiledVariant = (
     };
   }
 
-  const writeMpvr = (sizeInBytes: number): Uint8Array =>
-    write_blffile("big", [
-      s_blf_chunk_start_of_file.create("game variant"),
-      buildContentHeader(custom, sizeInBytes),
-      s_blf_chunk_game_variant.create(gameVariant),
-      new s_blf_chunk_end_of_file(),
-    ]);
-
-  const first = writeMpvr(0);
-  return { data: writeMpvr(first.length), variantByteLength: mglo.length };
+  return { data: writeMpvr(sizeInBytes), variantByteLength: mglo.length };
 };
 
 export const packMgloBytes = (

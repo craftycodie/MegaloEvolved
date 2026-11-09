@@ -1,4 +1,4 @@
-import { APP_NAME } from "../app/constants";
+import { _event_status, event } from "@blamnetwork/datamine";
 import { ipcWriteMccHotReloadMglo } from "./ipc";
 import { isTauriRuntime } from "./tauriRuntime";
 
@@ -9,7 +9,10 @@ export async function writeMccHotReloadMglo(bytes: Uint8Array): Promise<void> {
     return;
   }
   const path = await ipcWriteMccHotReloadMglo(bytes);
-  console.log(
-    `[${APP_NAME}] Wrote MCC hot-reload .mglo (${bytes.length} bytes) -> ${path}`
+  event(
+    _event_status,
+    "ide:desktop: Wrote MCC hot-reload .mglo (%d bytes) -> %s",
+    bytes.length,
+    path
   );
 }

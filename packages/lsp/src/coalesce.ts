@@ -1,3 +1,4 @@
+import { _event_error, event } from "@blamnetwork/datamine";
 export interface Coalescer<T> {
   clearPending: () => void;
   schedule: (job: T) => void;
@@ -28,7 +29,7 @@ export const createCoalescer = <T>(
         try {
           await processor(job);
         } catch (error) {
-          console.error("[megacrow-lsp] coalesced job failed", error);
+          event(_event_error, "lsp: coalesced job failed: %s", String(error));
         }
         next = pending.entries().next();
       }

@@ -1,3 +1,4 @@
+import { _event_error, event } from "@blamnetwork/datamine";
 import type {
   CompiledMegaloMetadata,
   VariantLimitUsage,
@@ -35,7 +36,11 @@ export const idleAnalysis = (): SourceAnalysis => ({
  * connection, IPC failure). Callers show it instead of staying on "parsing".
  */
 export const failedAnalysis = (error: unknown): SourceAnalysis => {
-  console.error("Megalo compile request failed:", error);
+  event(
+    _event_error,
+    "ide:compile: Megalo compile request failed: %s",
+    String(error)
+  );
   return {
     ...idleAnalysis(),
     compileState: "error",

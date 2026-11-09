@@ -1,3 +1,4 @@
+import { _event_error, event } from "@blamnetwork/datamine";
 import type { SourceFileQuickOpenEntry } from "./sourceFileQuickOpenEntry";
 
 export type { SourceFileQuickOpenEntry } from "./sourceFileQuickOpenEntry";
@@ -71,7 +72,7 @@ export function setIdePaletteOpener(opener: IdePaletteOpener | null): void {
 
 function openPalette(mode: IdePaletteMode): void {
   if (!paletteOpener) {
-    console.error("[megacrow] Ide palette opener is not registered");
+    event(_event_error, "ide:editor: Ide palette opener is not registered");
     return;
   }
   paletteOpener({ mode });

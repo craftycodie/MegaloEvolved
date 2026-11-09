@@ -3,11 +3,11 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { isTauriRuntime } from "../../desktop";
 import type { LocalDiskNode } from "../../files";
 import { listTauriMegaloTree } from "../../files";
-import { translateDiskError } from "../../localization";
 import {
   loadWorkspaceObjectLists,
   objectListsFolderIsEmpty,
 } from "../../workspace";
+import { fileErrorMessage } from "./fileErrorMessage";
 import { useWatchedListing } from "./useWatchedListing";
 
 interface WorkspaceListing {
@@ -82,7 +82,7 @@ export function useLocalDiskRefresh({
         return {
           missingListNames,
           objectLists: null,
-          objectListsError: translateDiskError(error),
+          objectListsError: fileErrorMessage(error),
           tree: nodes,
         };
       }

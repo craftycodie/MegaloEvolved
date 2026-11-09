@@ -2,6 +2,9 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { docsPageUrl, isTauriRuntime, listenDocsNavigate } from "../desktop";
 import "./styles.css";
 import { APP_NAME } from "../app/constants";
+import { startEventLog } from "../log";
+
+startEventLog();
 
 const DEFAULT_TITLE = `${APP_NAME} Docs`;
 

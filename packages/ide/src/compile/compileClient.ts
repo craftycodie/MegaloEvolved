@@ -1,3 +1,4 @@
+import { _event_error, event } from "@blamnetwork/datamine";
 import { resolveGameBuildNumber } from "@megacrow/megalo";
 import { DEFAULT_MEGALO_VERSION } from "../app/constants";
 import {
@@ -247,7 +248,11 @@ export async function requestCompileDownloadViaLsp(
       },
     };
   } catch (error) {
-    console.error("Megalo export compile failed:", error);
+    event(
+      _event_error,
+      "ide:compile: Megalo export compile failed: %s",
+      String(error)
+    );
     return compileDownloadFallback();
   }
 }

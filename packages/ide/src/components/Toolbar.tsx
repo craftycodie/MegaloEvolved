@@ -1,3 +1,4 @@
+import { _event_error, event } from "@blamnetwork/datamine";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { type MouseEvent, useState } from "react";
 import { APP_NAME } from "../app/constants";
@@ -292,7 +293,11 @@ export function Toolbar({
               className="toolbar-menu toolbar-menu--label"
               onClick={() => {
                 void ipcOpenDevtools().catch((error) => {
-                  console.error("Failed to open DevTools:", error);
+                  event(
+                    _event_error,
+                    "ide:desktop: Failed to open DevTools: %s",
+                    String(error)
+                  );
                 });
               }}
               title={t("toolbar_devtools_title")}
@@ -306,7 +311,11 @@ export function Toolbar({
             className="toolbar-menu toolbar-menu--label"
             onClick={() => {
               void openDocs().catch((error) => {
-                console.error("Failed to open docs:", error);
+                event(
+                  _event_error,
+                  "ide:desktop: Failed to open docs: %s",
+                  String(error)
+                );
               });
             }}
             title={t("toolbar_docs_title")}

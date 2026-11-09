@@ -1,3 +1,10 @@
+import {
+  _event_error,
+  _event_status,
+  _event_verbose,
+  _event_warning,
+  event,
+} from "@blamnetwork/datamine";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 import { DEFAULT_MEGALO_VERSION } from "../app/constants";
@@ -172,6 +179,13 @@ export function openDocument(
           activeText() ?? undefined
         );
 
+  event(
+    _event_verbose,
+    "ide:editor: open %s (%s, %d chars)",
+    document.path ?? document.displayName,
+    document.kind,
+    source.text.length
+  );
   editorHost.open(hostedInfo(document), source.text);
   editorHost.activate(document.key, options.reveal);
   lspSetActiveFile(document.path);
@@ -197,6 +211,13 @@ export async function openAsync(
 ): Promise<boolean> {
   const ticket = ++openTicket;
   const source = await read();
+  if (source && ticket !== openTicket) {
+    event(
+      _event_verbose,
+      "ide:editor: dropped stale open of %s",
+      source.path ?? source.displayName
+    );
+  }
   if (!source || ticket !== openTicket) {
     return false;
   }
@@ -231,9 +252,12 @@ export function openPathReference(
         currentFilePath,
       });
       if (!resolved) {
-        console.warn(
-          `[megacrow] could not open ${kind} path: ${path}` +
-            (kind === "base" ? " (source .txt not found)" : "")
+        event(
+          _event_warning,
+          "ide:editor: could not open %s path: %s%s",
+          kind,
+          path,
+          kind === "base" ? " (source .txt not found)" : ""
         );
         return null;
       }
@@ -360,6 +384,7 @@ export function handleEntryRenamed(
   newName: string,
   newAbsolutePath: string
 ): void {
+  event(_event_status, "ide:files: renamed %s -> %s", oldName, newName);
   const { active, history } = documentStore.getState();
   documentStore.setState({
     history: renameFileNavEntries(history, oldName, newName, newAbsolutePath),
@@ -388,6 +413,7 @@ export function handleEntryRenamed(
 
 /** A file or folder (`deletedName`, workspace-relative) was deleted. */
 export function handleEntryDeleted(deletedName: string): void {
+  event(_event_status, "ide:files: deleted %s", deletedName);
   const { active } = documentStore.getState();
   editorHost.closeWhere(
     (document) =>
@@ -423,6 +449,11 @@ export function restoreLastOpenFile(): void {
   void openAsync(async () => {
     const text = await readFromWorkspace(path);
     if (text === null) {
+      event(
+        _event_warning,
+        "ide:editor: last open file %s is gone; forgetting it",
+        path
+      );
       rememberLastOpenFile(null);
       return null;
     }
@@ -477,12 +508,22 @@ export function autosave(document: HostedDocumentInfo, text: string): void {
       if (saved !== true) {
         return;
       }
+      event(
+        _event_verbose,
+        "ide:files: saved %s (%d chars)",
+        path ?? displayName,
+        text.length
+      );
       editorHost.markSaved(key, text);
       if (isObjectListsPath(path ?? displayName)) {
         bumpLocalDiskRevision();
       }
     })
     .catch((error: unknown) => {
-      console.error("Failed to save source file:", error);
+      event(
+        _event_error,
+        "ide:files: Failed to save source file: %s",
+        String(error)
+      );
     });
 }

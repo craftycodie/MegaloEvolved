@@ -1,3 +1,4 @@
+import { _event_warning, event } from "@blamnetwork/datamine";
 import { useRef, useState } from "react";
 import { APP_NAME } from "../app/constants";
 import { DOCS_PATHS, isTauriRuntime, openDocs } from "../desktop";
@@ -114,9 +115,16 @@ export function SettingsMenu() {
                     aria-label={t("docs_open_megalo_headaches")}
                     className="settings-warning-card-link"
                     onClick={() => {
-                      void openDocs(DOCS_PATHS.megaloHeadaches).catch(() => {
-                        // Best-effort docs link.
-                      });
+                      void openDocs(DOCS_PATHS.megaloHeadaches).catch(
+                        (error: unknown) => {
+                          event(
+                            _event_warning,
+                            "ide:desktop: Failed to open docs page %s: %s",
+                            DOCS_PATHS.megaloHeadaches,
+                            String(error)
+                          );
+                        }
+                      );
                     }}
                     type="button"
                   >

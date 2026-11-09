@@ -1,3 +1,4 @@
+import { _event_error, event } from "@blamnetwork/datamine";
 import { getCompilerForVersion } from "src/backend/compile";
 import type {
   CompiledMegaloFileType,
@@ -452,7 +453,11 @@ export const compileFromAst = async (
       // Encode/write failures (incl. BLF) — size is a common cause, but not
       // the only one (e.g. unsupported container type on pre-release builds).
       if (!(error instanceof CompilerError)) {
-        console.error("[megalo] failed to write gametype file:", error);
+        event(
+          _event_error,
+          "megalo: failed to write gametype file: %s",
+          String(error)
+        );
         const detail =
           error instanceof Error
             ? error.message

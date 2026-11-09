@@ -1,3 +1,4 @@
+import { _event_status, event } from "@blamnetwork/datamine";
 import { MEGACROW_BUILD_STRING } from "@megacrow/megalo";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isTauriRuntime } from "../desktop";
@@ -39,6 +40,11 @@ export function useUpdateCheck({
       currentBuildString: MEGACROW_BUILD_STRING,
       skippedUpdateVersion,
     }).then((result) => {
+      event(
+        _event_status,
+        "ide:app: update check: %s",
+        result.kind === "available" ? result.release.tagName : "up to date"
+      );
       if (result.kind === "available") {
         setUpdateRelease(result.release);
       }
