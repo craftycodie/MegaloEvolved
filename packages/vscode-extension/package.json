@@ -5,6 +5,7 @@
   "version": "0.0.0",
   "private": true,
   "publisher": "blamnetwork",
+  "icon": "icon.png",
   "license": "ISC",
   "engines": {
     "vscode": "^1.85.0"
