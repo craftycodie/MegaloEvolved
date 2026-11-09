@@ -5,6 +5,7 @@ import { useT } from "../../localization";
 import { findLocalDiskNode } from "../../workspace";
 import { countFiles } from "./countFiles";
 import { NewFileGlyph, NewFolderGlyph } from "./FilesGlyphs";
+import { FolderErrorCard } from "./FolderErrorCard";
 import { LocalDiskTree } from "./LocalDiskTree";
 import type { FilesContextTarget } from "./useFilesPanelContextMenu";
 
@@ -28,10 +29,12 @@ interface Props {
   ) => void;
   onCreateFile: () => void;
   onCreateFolder: () => void;
+  onEditWorkspace?: () => void;
   onMoveEntries: (fromPaths: string[][], toParentPath: string[]) => void;
   onOpenFile: (path: string[]) => void;
   onRegenerateObjectLists: () => void;
   renamingPathKey: string | null;
+  rootError: string | null;
   workspaceId?: string;
 }
 
@@ -50,10 +53,12 @@ export function LocalDiskSection({
   onContextMenu,
   onCreateFile,
   onCreateFolder,
+  onEditWorkspace,
   onMoveEntries,
   onOpenFile,
   onRegenerateObjectLists,
   renamingPathKey,
+  rootError,
   workspaceId,
   localRootPath,
 }: Props) {
@@ -70,30 +75,41 @@ export function LocalDiskSection({
                 {t("files_count", { count: countFiles(localTree) })}
               </span>
             ) : null}
-            <button
-              aria-label={t("files_new_file")}
-              className="files-panel-icon-action"
-              onClick={onCreateFile}
-              title={t("files_new_file")}
-              type="button"
-            >
-              <NewFileGlyph />
-            </button>
-            <button
-              aria-label={t("files_new_folder")}
-              className="files-panel-icon-action"
-              onClick={onCreateFolder}
-              title={t("files_new_folder")}
-              type="button"
-            >
-              <NewFolderGlyph />
-            </button>
+            {rootError ? null : (
+              <>
+                <button
+                  aria-label={t("files_new_file")}
+                  className="files-panel-icon-action"
+                  onClick={onCreateFile}
+                  title={t("files_new_file")}
+                  type="button"
+                >
+                  <NewFileGlyph />
+                </button>
+                <button
+                  aria-label={t("files_new_folder")}
+                  className="files-panel-icon-action"
+                  onClick={onCreateFolder}
+                  title={t("files_new_folder")}
+                  type="button"
+                >
+                  <NewFolderGlyph />
+                </button>
+              </>
+            )}
           </div>
         </div>
       ) : null}
 
       <div className="files-section-scroll">
-        {localRoot ? (
+        {localRoot && rootError ? (
+          <FolderErrorCard
+            error={rootError}
+            onEditWorkspace={onEditWorkspace}
+            path={localRoot.path}
+            title={t("files_workspace_unreadable")}
+          />
+        ) : localRoot ? (
           <>
             {localError ? (
               <p className="files-hint files-hint--error">{localError}</p>
@@ -125,7 +141,6 @@ export function LocalDiskSection({
                 onRegenerateObjectLists={
                   canRegenerateObjectLists ? onRegenerateObjectLists : undefined
                 }
-                regenerateObjectListsLabel={t("files_regenerate_object_lists")}
                 renamingPathKey={renamingPathKey}
               />
             )}

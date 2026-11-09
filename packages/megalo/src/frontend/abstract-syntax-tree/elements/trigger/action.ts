@@ -1214,7 +1214,7 @@ export class ActionParserRepository {
 
     this.registerParser(
       "hs_function_call",
-      buildParameterParser([ParameterType.Keyword])
+      buildParameterParser([ObjectListParameter(ObjectListType.Strings)])
     );
 
     this.registerParser(

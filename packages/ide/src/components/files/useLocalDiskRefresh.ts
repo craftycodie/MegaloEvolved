@@ -35,6 +35,8 @@ export function useLocalDiskRefresh({
   const localDiskAvailable = isTauriDiskSupported();
   const [localTree, setLocalTree] = useState<LocalDiskNode[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
+  /** Set when the workspace input folder itself cannot be listed. */
+  const [rootError, setRootError] = useState<string | null>(null);
   const [ensureExpandedKeys, setEnsureExpandedKeys] = useState<string[]>([]);
   const lastObjectListsJsonRef = useRef<string>("");
   const localRootPathRef = useRef<string | null>(null);
@@ -49,15 +51,28 @@ export function useLocalDiskRefresh({
       lastObjectListsJsonRef.current = "";
       return;
     }
+    let tree: LocalDiskNode[];
+    let missingListNames: readonly string[];
     try {
       setLocalError(null);
-      const { nodes: tree, missingListNames } = await listTauriMegaloTree(
+      ({ nodes: tree, missingListNames } = await listTauriMegaloTree(
         rootPath,
         objectListNames
-      );
+      ));
+    } catch (error) {
       if (localRootPathRef.current !== rootPath) {
         return;
       }
+      setRootError(translateDiskError(error));
+      setLocalTree([]);
+      onMissingObjectListNamesChange?.([]);
+      return;
+    }
+    if (localRootPathRef.current !== rootPath) {
+      return;
+    }
+    setRootError(null);
+    try {
       setLocalTree(tree);
       onMissingObjectListNamesChange?.(missingListNames);
       if (objectListsFolderIsEmpty(tree)) {
@@ -91,6 +106,7 @@ export function useLocalDiskRefresh({
   useEffect(() => {
     setLocalTree([]);
     setLocalError(null);
+    setRootError(null);
     setEnsureExpandedKeys([]);
     lastObjectListsJsonRef.current = "";
     if (!localRootPath) {
@@ -143,6 +159,7 @@ export function useLocalDiskRefresh({
     localError,
     localTree,
     refreshLocal,
+    rootError,
     setEnsureExpandedKeys,
     setLocalError,
     tauriAvailable,

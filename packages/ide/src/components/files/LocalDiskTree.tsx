@@ -10,6 +10,7 @@ import {
   isObjectListsPath,
   isRecognizedObjectListName,
 } from "../../gametype";
+import { useT } from "../../localization";
 import { FilesRenameInput } from "./FilesRenameInput";
 import { flattenVisibleNodes } from "./treeUtils";
 import { useLocalDiskTreeDragDrop } from "./useLocalDiskTreeDragDrop";
@@ -41,7 +42,6 @@ interface Props {
   onMoveEntries: (fromPaths: string[][], toParentPath: string[]) => void;
   onOpenFile: (path: string[]) => void;
   onRegenerateObjectLists?: () => void;
-  regenerateObjectListsLabel?: string;
   renamingPathKey: string | null;
 }
 
@@ -191,7 +191,6 @@ function TreeNode({
   expandedPaths,
   objectListNames,
   onRegenerateObjectLists,
-  regenerateObjectListsLabel,
   renamingPathKey,
   selectedKeys,
   onPointerDownRow,
@@ -211,7 +210,6 @@ function TreeNode({
   expandedPaths: Set<string>;
   objectListNames: readonly string[];
   onRegenerateObjectLists?: () => void;
-  regenerateObjectListsLabel?: string;
   renamingPathKey: string | null;
   selectedKeys: Set<string>;
   onPointerDownRow: (
@@ -232,6 +230,7 @@ function TreeNode({
     target: { type: "file" | "directory"; path: string[]; virtual?: boolean }
   ) => void;
 }) {
+  const t = useT();
   const displayPath = formatLocalDiskPath(node.path);
   const nodeKey = pathKey(node.path);
   const isExpanded = expandedPaths.has(nodeKey);
@@ -385,7 +384,7 @@ function TreeNode({
           <span className="files-row-label">{node.name}</span>
           {isObjectLists && onRegenerateObjectLists ? (
             <button
-              aria-label={regenerateObjectListsLabel}
+              aria-label={t("files_regenerate_object_lists")}
               className="files-row-regenerate"
               onClick={(event) => {
                 event.preventDefault();
@@ -395,10 +394,10 @@ function TreeNode({
               onPointerDown={(event) => {
                 event.stopPropagation();
               }}
-              title={regenerateObjectListsLabel}
+              title={t("files_regenerate_object_lists_tooltip")}
               type="button"
             >
-              {regenerateObjectListsLabel}
+              {t("files_regenerate_object_lists")}
             </button>
           ) : null}
         </div>
@@ -428,7 +427,6 @@ function TreeNode({
               onRegenerateObjectLists={onRegenerateObjectLists}
               onRowActivate={onRowActivate}
               onToggleDirectory={onToggleDirectory}
-              regenerateObjectListsLabel={regenerateObjectListsLabel}
               renamingPathKey={renamingPathKey}
               selectedKeys={selectedKeys}
             />
@@ -445,7 +443,6 @@ export function LocalDiskTree({
   objectListNames = [],
   onOpenFile,
   onRegenerateObjectLists,
-  regenerateObjectListsLabel,
   renamingPathKey,
   onBeginRename,
   onCommitRename,
@@ -538,7 +535,6 @@ export function LocalDiskTree({
           onRegenerateObjectLists={onRegenerateObjectLists}
           onRowActivate={selection.onRowActivate}
           onToggleDirectory={selection.onToggleDirectory}
-          regenerateObjectListsLabel={regenerateObjectListsLabel}
           renamingPathKey={renamingPathKey}
           selectedKeys={selection.selectedKeys}
         />

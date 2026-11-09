@@ -4,6 +4,7 @@ import {
   DiagnosticSeverity,
   MEGALO_VERSIONS,
   compileSource as megaloCompileSource,
+  resolveGameBuildNumber,
   SourceLocationType,
 } from "@megacrow/megalo";
 import { translate } from "../localization";
@@ -80,7 +81,10 @@ async function compileOrThrow(
 ): Promise<Uint8Array> {
   const result = await megaloCompileSource(source, {
     version: compileVersion(),
-    buildNumber: getCompileGameBuildNumber(),
+    // Hosts that never chose a build (CLI) get the version's default.
+    buildNumber:
+      getCompileGameBuildNumber() ??
+      resolveGameBuildNumber(getCompileMegaloVersion(), null),
     megacrowExtensions: getCompileMegacrowExtensions(),
     compilerSettings: {
       strictStringLiterals: getCompileStrictStringLiterals(),

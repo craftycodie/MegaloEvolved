@@ -1,0 +1,192 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "Haloscript",
+    "scopeName": "source.hsc",
+    "patterns": [{ "include": "#code" }],
+    "repository": {
+        "code": {
+            "patterns": [
+                {
+                    "comment": "Everything is either a comment...",
+                    "include": "#comment"
+                },
+                {
+                    "comment": "... or an expression!",
+                    "include": "#expression"
+                }
+            ]
+        },
+        "expression": {
+            "patterns": [
+                {
+                    "begin": "\\(",
+                    "end": "\\)",
+                    "beginCaptures": { 
+                        "0": { "name": "punctuation.paren.open" }
+                    },
+                    "endCaptures": { 
+                        "0": { "name": "punctuation.paren.close" }
+                    },
+                    "name": "expression.group",
+                    "patterns": [
+                        {
+                            "include": "#code"
+                        },
+                        {
+                            "include": "#comment"
+                        },
+                        {
+                            "include": "#expression"
+                        },
+                        {
+                            "include": "#string"
+                        },
+                        {
+                            "include": "#numeric"
+                        },
+                        {
+                            "include": "#constants"
+                        },
+                        {
+                            "include": "#custom_functions"
+                        },
+                        {
+                            "include": "#custom_pp_functions"
+                        },
+                        {
+                            "include": "#declarations_and_types"
+                        },
+                        {
+                            "include": "#operators"
+                        },
+                        {
+                            "include": "#functions_(intrinsic-ish)"
+                        },
+                        {
+                            "include": "#functions_(non-intrinsic-ish)"
+                        },
+                        {
+                            "include": "#game_globals"
+                        },
+                        {
+                            "include": "#preprocessor_commands"
+                        }
+                    ]
+                }
+            ]
+        },
+        "comment": {
+            "patterns": [
+                {
+                    "name": "comment",
+                    "begin": ";[^*]",
+                    "end": "$\\n?",
+                    "captures": {
+                        "1": {
+                            "name": "comment.line"
+                        }
+                    }
+                },
+                {
+                    "name": "comment.block",
+                    "begin": ";\\*",
+                    "end": "\\*;",
+                    "captures": {
+                        "1": {
+                            "name": "comment.block"
+                        }
+                    }
+                }
+            ]
+        },
+        "string": {
+            "patterns": [
+                {
+                    "name": "string.quoted",
+                    "begin": "\"",
+                    "end": "\""
+                }
+            ]
+        },
+        "numeric": {
+            "patterns": [
+                {
+                    "name": "constant.numeric",
+                    "match": "\\b[\\d|.]+\\b"
+                }
+            ]
+        },
+        "constants": {
+            "patterns": [
+                {
+                    "name": "constant.language",
+                    "match": "\\b(easy|normal|hard|impossible|player|human|covenant|flood|sentinel|none|sleeping|alert|moving|guarding|searching|fleeing|top_left|top_right|bottom_left|bottom_right|true|false|DELAY_BLINK|DELAY_DAWDLE|DELAY_LATE|DELAY_LOST|DELAY_FAIL|GLOBAL_DAMAGE_DUMMY|GLOBAL_DAMAGE_DUMMY_SHIELD|GLOBAL_DAMAGE_FX_HEALTH|COMPONENTS_INCLUDE_DEPENDENCIES|COMPONENTS_INCLUDE_API|COMPONENTS_INCLUDE_SCRIPTS|COMPONENT_FILTER_GLOBALS|COMPONENT_FILTER_SHARED|COMPONENT_FILTER_CMT|COMPONENT_FILTER_SCENARIO|COMPONENT_FILTER_SCENARIO_MISC|COMPONENT_FILTER_SCENARIO_MISSIONS)\\b"
+                }
+            ]
+        },
+        "custom_functions": {
+            "patterns": [
+                {
+                    "name": "entity.name.function",
+                    "match": "\\b(random_chance_25|random_chance_33|random_chance_50|random_chance_66|random_chance_75|cinematic_skip_start|cinematic_skip_stop|script_dialog_start|script_dialog_stop|player_effect_impact|player_effect_explosion|player_effect_rumble|player_effect_vibration|player0|player0_obj|player0_shield_frac|player0_health_frac|player0_in_vehicle)\\b"
+                }
+            ]
+        },
+        "custom_pp_functions": {
+            "patterns": [
+                {
+                    "name": "entity.name.function",
+                    "match": "\\b(MUSIC_START|MUSIC_ALT|MUSIC_UNALT|MUSIC_STOP|VOLUME_TEST_PLAYER0|TELEPORT_PLAYER0|COMPONENT_DEPENDENCIES|COMPONENT_BODY|COMPONENT_API|COMPONENT_SCRIPTS)\\b"
+                }
+            ]
+        },
+        "declarations_and_types": {
+            "patterns": [
+                {
+                    "name": "entity.name.class",
+                    "match": "\\b(script|global|startup|dormant|continuous|static|stub|passthrough|void|boolean|real|short|long|string|trigger_volume|cutscene_flag cutscene_camera_point cutscene_title|cutscene_recording|device_group|ai|ai_command_list|starting_profile|conversation|navpoint|hud_message|object_list|sound|effect|damage|looping_sound|animation_graph|actor_variant|damage_effect|object_definition|game_difficulty|team|ai_default_state|actor_type|hud_corner|object|unit|vehicle|weapon|device|scenery|object_name|unit_name|vehicle_name|weapon_name|device_name|scenery_name|SCRIPT_DORMANT_CONTINUOUS)\\b"
+                }
+            ]
+        },
+        "operators": {
+            "patterns": [
+                {
+                    "name": "keyword.operator.new",
+                    "match": "(=|<|<=|>|>=|!=|\\+|-|\\*|(?<=\\W)\\/)"
+                }
+            ]
+        },
+        "functions_(intrinsic-ish)": {
+            "patterns": [
+                {
+                    "name": "variable.language",
+                    "match": "\\b(begin|begin_random|if|cond|set|and|or|min|max|sleep|sleep_until|wake|inspect|unit|not|print|DEBUG_PRINT|DEBUG_PRINT_IF|DEBUG_PRINT_TIMED|DEBUG_PRINT_IF_TIMED|DEBUG_INSPECT|DEBUG_INSPECT_IF|DEBUG_INSPECT_TIMED|DEBUG_INSPECT_IF_TIMED|DEBUG_FINE_PRINT|DEBUG_FINE_PRINT_IF|DEBUG_FINE_PRINT_TIMED|DEBUG_FINE_PRINT_IF_TIMED|DEBUG_FINE_INSPECT|DEBUG_FINE_INSPECT_IF|DEBUG_FINE_INSPECT_TIMED|DEBUG_FINE_INSPECT_IF_TIMED|WARNING_UNFILLED_STUB|NOOP)\\b"
+                }
+            ]
+        },
+        "functions_(non-intrinsic-ish)": {
+            "patterns": [
+                {
+                    "name": "variable",
+                    "match": "\\b(ai_debug_communication_suppress|ai_debug_communication_ignore|ai_debug_communication_focus|players|volume_teleport_players_not_inside|volume_test_object|volume_test_objects|volume_test_objects_all|object_teleport|object_set_facing|object_set_shield|object_set_permutation|object_create|object_destroy|object_create_anew|object_create_containing|object_create_anew_containing|object_destroy_containing|object_destroy_all|list_get|list_count|effect_new|effect_new_on_object_marker|damage_new|damage_object|objects_can_see_object|objects_can_see_flag|objects_delete_by_definition|sound_set_gain|sound_get_gain|script_recompile|help|random_range|real_random_range|numeric_countdown_timer_set|numeric_countdown_timer_get|numeric_countdown_timer_stop|numeric_countdown_timer_restart|breakable_surfaces_enable|recording_play|recording_play_and_delete|recording_play_and_hover|recording_kill|recording_time|object_set_ranged_attack_inhibited|object_set_melee_attack_inhibited|objects_dump_memory|object_set_collideable|object_set_scale|objects_attach|objects_detach|garbage_collect_now|object_cannot_take_damage|object_can_take_damage|object_beautify|objects_predict|object_type_predict|object_pvs_activate|object_pvs_set_object|object_pvs_set_camera|object_pvs_clear|render_lights|scenery_get_animation_time|scenery_animation_start|scenery_animation_start_at_frame|render_effects|unit_can_blink|unit_open|unit_close|unit_kill|unit_kill_silent|unit_get_custom_animation_time|unit_stop_custom_animation|unit_custom_animation_at_frame|custom_animation|custom_animation_list|unit_is_playing_custom_animation|unit_aim_without_turning|unit_set_emotion|unit_set_enterable_by_player|unit_enter_vehicle|vehicle_test_seat_list|vehicle_test_seat|unit_set_emotion_animation|unit_exit_vehicle|unit_set_maximum_vitality|units_set_maximum_vitality|unit_set_current_vitality|units_set_current_vitality|vehicle_load_magic|vehicle_unload|magic_seat_name|unit_set_seat|magic_melee_attack|vehicle_riders|vehicle_driver|vehicle_gunner|unit_get_health|unit_get_shield|unit_get_total_grenade_count|unit_has_weapon|unit_has_weapon_readied|unit_doesnt_drop_items|unit_impervious|unit_suspended|unit_solo_player_integrated_night_vision_is_active|units_set_desired_flashlight_state|unit_set_desired_flashlight_state|unit_get_current_flashlight_state|device_set_never_appears_locked|device_get_power|device_set_power|device_set_position|device_get_position|device_set_position_immediate|device_group_get|device_group_set|device_group_set_immediate|device_one_sided_set|device_operates_automatically_set|device_group_change_only_once_more_set|breakable_surfaces_reset|cheat_all_powerups|cheat_all_weapons|cheat_spawn_warthog|cheat_all_vehicles|cheat_teleport_to_camera|cheat_active_camouflage|cheat_active_camouflage_local_player|cheats_load|ai_free|ai_free_units|ai_attach|ai_attach_free|ai_detach|ai_place|ai_kill|ai_kill_silent|ai_erase|ai_erase_all|ai_select|ai_deselect|ai_spawn_actor|ai_set_respawn|ai_set_deaf|ai_set_blind|ai_magically_see_encounter|ai_magically_see_players|ai_magically_see_unit|ai_timer_start|ai_timer_expire|ai_attack|ai_defend|ai_retreat|ai_maneuver|ai_maneuver_enable|ai_migrate|ai_migrate_and_speak|ai_migrate_by_unit|ai_allegiance|ai_allegiance_remove|ai_living_count|ai_living_fraction|ai_strength|ai_swarm_count|ai_nonswarm_count|ai_actors|ai_go_to_vehicle|ai_go_to_vehicle_override|ai_going_to_vehicle|ai_exit_vehicle|ai_braindead|ai_braindead_by_unit|ai_disregard|ai_prefer_target|ai_teleport_to_starting_location|ai_teleport_to_starting_location_if_unsupported|ai_renew|ai_try_to_fight_nothing|ai_try_to_fight|ai_try_to_fight_player|ai_command_list|ai_command_list_by_unit|ai_command_list_advance|ai_command_list_advance_by_unit|ai_command_list_status|ai_is_attacking|ai_force_active|ai_force_active_by_unit|ai_set_return_state|ai_set_current_state|ai_playfight|ai_status|ai_reconnect|ai_vehicle_encounter|ai_vehicle_enterable_distance|ai_vehicle_enterable_team|ai_vehicle_enterable_actor_type|ai_vehicle_enterable_actors|ai_vehicle_enterable_disable|ai_look_at_object|ai_stop_looking|ai_automatic_migration_target|ai_follow_target_disable|ai_follow_target_players|ai_follow_target_unit|ai_follow_target_ai|ai_follow_distance|ai_conversation|ai_conversation_stop|ai_conversation_advance|ai_conversation_line|ai_conversation_status|ai_link_activation|ai_berserk|ai_set_team|ai_allow_charge|ai_allow_dormant|ai_allegiance_broken|camera_control|camera_set|camera_set_relative|camera_set_animation|camera_set_first_person|camera_set_dead|camera_time|debug_camera_load|debug_camera_save|game_speed|game_time|game_variant|game_difficulty_get|game_difficulty_get_real|profile_service_clear_timers|profile_service_dump_timers|map_reset|map_name|multiplayer_map_name|game_difficulty_set|crash|switch_bsp|structure_bsp_index|version|playback|quit|texture_cache_flush|sound_cache_flush|sound_cache_dump_to_file|debug_memory|debug_memory_by_file|debug_memory_for_file|debug_tags|profile_reset|profile_dump|profile_activate|profile_deactivate|profile_graph_toggle|debug_pvs|radiosity_start|radiosity_save|radiosity_debug_point|ai|ai_dialogue_triggers|ai_grenades|ai_lines|ai_debug_sound_point_set|ai_debug_vocalize|ai_debug_teleport_to|ai_debug_speak|ai_debug_speak_list|fade_in|fade_out|cinematic_start|cinematic_stop|cinematic_abort|cinematic_skip_start_internal|cinematic_skip_stop_internal|cinematic_show_letterbox|cinematic_set_title|cinematic_set_title_delayed|cinematic_suppress_bsp_object_creation|attract_mode_start|game_won|game_lost|game_safe_to_save|game_all_quiet|game_safe_to_speak|game_is_cooperative|game_save|game_save_cancel|game_save_no_timeout|game_save_totally_unsafe|game_saving|game_revert|game_reverted|core_save|core_save_name|core_load|core_load_at_startup|core_load_name|core_load_name_at_startup|game_skip_ticks|sound_impulse_predict|sound_impulse_start|sound_impulse_time|sound_impulse_stop|sound_looping_predict|sound_looping_start|sound_looping_stop|sound_looping_set_scale|sound_looping_set_alternate|debug_sounds_enable|debug_sounds_distances|debug_sounds_wet|sound_enable|sound_set_master_gain|sound_get_master_gain|sound_set_music_gain|sound_get_music_gain|sound_set_effects_gain|sound_get_effects_gain|sound_class_set_gain|vehicle_hover|players_unzoom_all|player_enable_input|player_camera_control|player_action_test_reset|player_action_test_jump|player_action_test_primary_trigger|player_action_test_grenade_trigger|player_action_test_zoom|player_action_test_action|player_action_test_accept|player_action_test_back|player_action_test_look_relative_up|player_action_test_look_relative_down|player_action_test_look_relative_left|player_action_test_look_relative_right|player_action_test_look_relative_all_directions|player_action_test_move_relative_all_directions|player_add_equipment|debug_teleport_player|show_hud|show_hud_help_text|enable_hud_help_flash|hud_help_flash_restart|activate_nav_point_flag|activate_nav_point_object|activate_team_nav_point_flag|activate_team_nav_point_object|deactivate_nav_point_flag|deactivate_nav_point_object|deactivate_team_nav_point_flag|deactivate_team_nav_point_object|hud_team_icon_set_pos|hud_team_icon_set_scale|hud_team_background_set_pos|hud_team_background_set_scale|cls|connect|disconnect|hammer_begin|hammer_stop|network_server_dump|network_client_dump|net_graph_clear|net_graph_show|play_update_history|show_player_update_stats|message_metrics_clear|message_metrics_dump|error_overflow_suppression|structure_lens_flares_place|player_effect_set_max_rumble|player_effect_set_max_translation|player_effect_set_max_rotation|player_effect_set_max_vibrate|player_effect_start|player_effect_stop|hud_show_health|hud_blink_health|hud_show_shield|hud_blink_shield|hud_show_motion_sensor|hud_blink_motion_sensor|hud_show_crosshair|hud_clear_messages|hud_set_help_text|hud_set_objective_text|hud_set_timer_time|hud_set_timer_warning_time|hud_set_timer_position|show_hud_timer|pause_hud_timer|hud_get_timer_ticks|time_code_show|time_code_start|time_code_reset|reload_shader_transparent_chicago|rasterizer_reload_effects|set_gamma|rasterizer_fixed_function_ambient|rasterizer_decals_flush|rasterizer_fps_accumulate|rasterizer_model_ambient_reflection_tint|rasterizer_lights_reset_for_new_map|script_screen_effect_set_value|cinematic_screen_effect_start|cinematic_screen_effect_set_convolution|cinematic_screen_effect_set_filter|cinematic_screen_effect_set_filter_desaturation_tint|cinematic_screen_effect_set_video|cinematic_screen_effect_stop|cinematic_set_near_clip_distance|delete_save_game_files|fast_setup_network_server|profile_unlock_solo_levels|player0_look_invert_pitch|player0_look_pitch_is_inverted|player0_joystick_set_is_normal|ui_widget_show_path|display_scenario_help|sound_enable_eax|sound_eax_enabled|sound_set_env|sound_enable_hardware|sound_set_supplementary_buffers|sound_get_supplementary_buffers|sound_set_rolloff|sound_set_factor|input_get_joy_count|input_is_joy_active|input_activate_joy|input_deactivate_joy|input_find_joystick|input_show_joystick_info|input_find_default|config_one_control|get_yaw_rate|get_pitch_rate|set_yaw_rate|set_pitch_rate|get_digital_forward_throttle|set_digital_forward_throttle|get_digital_strafe_throttle|set_digital_strafe_throttle|get_digital_yaw_increment|set_digital_yaw_increment|get_digital_pitch_increment|set_digital_pitch_increment|get_mouse_forward_threshold|set_mouse_forward_threshold|get_mouse_strafe_threshold|set_mouse_strafe_threshold|get_mouse_yaw_scale|set_mouse_yaw_scale|get_mouse_pitch_scale|set_mouse_pitch_scale|get_gamepad_forward_threshold|set_gamepad_forward_threshold|get_gamepad_strafe_threshold|set_gamepad_strafe_threshold|get_gamepad_yaw_scale|set_gamepad_yaw_scale|get_gamepad_pitch_scale|set_gamepad_pitch_scale|bind|unbind|print_binds|sv_end_game|change_team|sv_mapcycle|sv_mapcycle_begin|sv_mapcycle_add|sv_mapcycle_del|sv_map_next|sv_map_reset|sv_map|rcon|sv_rcon_password|sv_say|sv_players|sv_kick|sv_ban|sv_banlist|sv_unban|sv_parameters_reload|sv_parameters_dump|sv_status|sv_name|sv_password|sv_log_note|sv_log_file|sv_log_enabled|sv_log_rotation_threshold|sv_log_echo_chat|profile_load|track_remote_player_position_updates|remote_player_stats|sv_get_player_action_queue_length|thread_sleep|checkpoint_save|checkpoint_load|sv_maplist|sv_gamelist|sv_friendly_fire|sv_timelimit|sv_ban_penalty|sv_tk_grace|sv_tk_cooldown|sv_banlist_file|sv_maxplayers|sv_single_flag_force_reset|sv_motd|oid_watch|oid_dump|oid_status|volume_test_player_team|volume_test_player_team_all|player_team_teleport|player_team_players|player_data_get_integer|player_team_data_get_integer|player_data_get_object|player_data_get_real|player_data_set_real|player_local_get|objects_distance_to_object|object_data_get_real|object_data_set_real|weapon_data_get_real|weapon_data_set_real|weapon_data_trigger_set_real|unit_data_get_object|unit_data_get_integer|unit_data_set_integer|unit_data_get_real|unit_data_set_real|physics_get_gravity|physics_set_gravity|physics_constants_reset|machine_is_host|machine_is_dedi|rasterizer_rt_display|rasterizer_gbuffer_enabled|pp_external_post_processes_enabled|pp_internal_post_processes_enabled|pp_fxaa_enabled|pp_motion_blur_enabled|pp_motion_blur_amount|pp_load|pp_unload|pp_get_effect_instance_index_by_name|pp_set_effect_instance_active|pp_set_effect_instance_fade|pp_get_effect_instance_current_fade|pp_get_effect_instance_fade_direction|pp_get_effect_index_by_name|pp_get_effect_is_valid|pp_get_effect_shader_variable_index_by_name|pp_set_effect_shader_variable_boolean|pp_set_effect_shader_variable_integer|pp_set_effect_shader_variable_real|pp_set_effect_shader_instance_active|pp_bloom_set_size|pp_bloom_set_exposure|pp_bloom_set_mix_amount|pp_bloom_set_minimum_color|pp_bloom_set_maximum_color|bitwise_and|bitwise_or|bitwise_xor|bitwise_lhs|bitwise_rhs|bit_test|bit_toggle|bit_flags_test|bit_flags_toggle|hex_string_to_long|runtime_integer_operation|runtime_vectors_reset|runtime_vector_get_element|runtime_vector_set_element|runtime_vector_set|runtime_vector_operation|runtime_vector_to_string|object_data_set_vector|object_data_save_vector|display_scripted_ui_widget|play_bink_movie|scenario_faux_zones_reset|scenario_faux_zone_current_switch_variant|scenario_faux_zone_switch_variant|scenario_faux_zone_switch_sky|abs_integer|abs_real|runtime_integers_reset|runtime_integer_inc|runtime_integer_get|runtime_integer_set|runtime_integer_dec|game_change_version_id|game_engine_data_get_integer|structure_bsp_set_lightmap_set|structure_bsp_set_sky_set|ai_transform_actor|ai_transform_actors|ai_transform_actors_by_type|ai_actor_is_transforming)\\b"
+                }
+            ]
+        },
+        "game_globals": {
+            "patterns": [
+                {
+                    "name": "entity.name.method",
+                    "match": "\\b(debug_sound|sv_tk_ban|sv_public|sv_mapcycle_timeout|cheat_medusa|cheat_super_jump|cheat_bottomless_clip|cheat_deathless_player|multiplayer_draw_teammates_names|rasterizer_fps|mouse_acceleration|rasterizer_wireframe|rasterizer_fog_plane|rasterizer_fog_atmosphere|rasterizer_environment_diffuse_textures|developer_mode|hud_filter|run_game_scripts|slow_server_startup_safety_zone_in_seconds|global_connection_dont_timeout|allow_out_of_sync|error_suppress_all|find_all_fucked_up_shit|debug_player_color|debug_recording_newlines|debug_recording|director_camera_switching|director_camera_switch_fast|texture_cache_list|texture_cache_graph|debug_player_teleport|player_magnetism|player_autoaim|controls_swap_doubled_spin_state|controls_enable_doubled_spin|controls_swapped|controls_enable_crouch|ai_fix_actor_variants|ai_fix_defending_guard_firing_positions|ai_debug_path_disable_obstacle_avoidance|ai_debug_path_disable_smoothing|ai_debug_force_crouch|ai_debug_force_vocalizations|ai_debug_disable_wounded_sounds|ai_debug_force_all_active|ai_debug_flee_always|ai_debug_ignore_player|ai_debug_invisible_player|ai_debug_deaf|ai_debug_blind|ai_debug_communication_focus_enable|ai_debug_communication_unit_repeat_disabled|ai_debug_communication_timeout_disabled|ai_debug_communication_random_disabled|ai_debug_ballistic_lineoffire_freeze|ai_debug_path_accept_radius|ai_debug_path_attractor_weight|ai_debug_path_attractor_radius|ai_debug_path_attractor|ai_debug_path_maximum_radius|ai_debug_path_flood|ai_debug_path_end_freeze|ai_debug_path_start_freeze|ai_debug_path|ai_debug_evaluate_all_positions|ai_debug_oversteer_disable|ai_debug_fast_los|ai_print_uncovering|ai_print_bsp_transition|ai_print_unfinished_paths|ai_print_acknowledgement|ai_print_killing_sprees|ai_print_conversations|ai_print_oversteer|ai_print_secondary_looking|ai_print_damage_modifiers|ai_print_command_lists|ai_print_surprise|ai_print_scripting|ai_print_automatic_migration|ai_print_migration|ai_print_lost_speech|ai_print_allegiance|ai_print_speech_timers|ai_print_speech|ai_print_placement|ai_print_vocalizations|ai_print_communication_player|ai_print_communication|ai_print_evaluation_statistics|ai_print_respawn|ai_print_major_upgrade|ai_print_rule_values|ai_print_rules|ai_print_pursuit_checks|ai_render_postcombat|ai_render_vector_avoidance_intermediate|ai_render_vector_avoidance_objects|ai_render_vector_avoidance_weights|ai_render_vector_avoidance_clear_time|ai_render_vector_avoidance_avoid_t|ai_render_vector_avoidance_sense_t|ai_render_vector_avoidance_rays|ai_render_vector_avoidance|ai_render_player_aiming_blocked|ai_render_paths_nodes_closest|ai_render_paths_nodes_costs|ai_render_paths_nodes_polygons|ai_render_paths_nodes_all|ai_render_paths_nodes|ai_render_paths_avoidance_search|ai_render_paths_avoidance_obstacles|ai_render_paths_avoidance_segment|ai_render_paths_avoided|ai_render_paths_smoothed|ai_render_paths_failed|ai_render_paths_current|ai_render_paths_raw|ai_render_paths_destination|ai_render_paths_selected_only|ai_render_paths|ai_render_activation|ai_render_control|ai_render_charge_decisions|ai_render_danger_zones|ai_render_grenade_decisions|ai_render_dialogue_variants|ai_render_melee_check|ai_render_vehicles_enterable|ai_render_vehicle_avoidance|ai_render_burst_geometry|ai_render_gun_positions|ai_render_firing_positions|ai_render_spatial_effects|ai_render_player_ratings|ai_render_teams|ai_render_speech|ai_render_aiming_validity|ai_render_projectile_aiming|ai_render_trigger|ai_render_shooting|ai_render_pursuit|ai_render_evaluations|ai_render_active_cover_seeking|ai_render_vitality|ai_render_states|ai_render_targets_last_visible|ai_render_targets|ai_render_secondary_looking|ai_render_aiming_vectors|ai_render_audibility|ai_render_emotions|ai_render_threats|ai_render_recent_damage|ai_render_support_surfaces|ai_render_idle_look|ai_render_props_target_weight|ai_render_props_unopposable|ai_render_props_unreachable|ai_render_props_no_friends|ai_render_props_web|ai_render_props|ai_render_detailed_state|ai_render_current_state|ai_render_vision_cones|ai_render_encounter_activeregion|ai_render_ballistic_lineoffire|ai_render_lineofsight|ai_render_lineoffire|ai_render_lineoffire_crouching|ai_render_inactive_actors|ai_render_all_actors|ai_render|ai_show_sound_distance|ai_show_prop_types|ai_show_line_of_sight|ai_show_paths|ai_show_swarms|ai_show_actors|ai_show_stats|ai_show|ai_profile_random|ai_profile_disable|vehicle_incremental_rate|weather|debug_material_effects|debug_collision_skip_vectors|debug_collision_skip_objects|debug_biped_limp_body_disable|debug_biped_skip_collision|debug_biped_skip_update|debug_biped_physics|debug_lights|debug_object_lights|debug_decals|breakable_surfaces|debug_fog_planes|debug_permanent_decals|debug_input|debug_bsp|debug_structure|debug_player|debug_camera|debug_obstacle_path_goal_surface_index|debug_obstacle_path_goal_point_y|debug_obstacle_path_goal_point_x|debug_obstacle_path_start_surface_index|debug_obstacle_path_start_point_y|debug_obstacle_path_start_point_x|debug_obstacle_path_on_failure|debug_obstacle_path|collision_debug_phantom_bsp|collision_debug_height|collision_debug_width|collision_debug_length|collision_debug_vector_k|collision_debug_vector_j|collision_debug_vector_i|collision_debug_point_z|collision_debug_point_y|collision_debug_point_x|collision_debug_flag_use_vehicle_physics|collision_debug_flag_skip_passthrough_bipeds|collision_debug_flag_try_to_keep_location_valid|collision_debug_flag_objects_placeholders|collision_debug_flag_objects_light_fixtures|collision_debug_flag_objects_controls|collision_debug_flag_objects_machines|collision_debug_flag_objects_scenery|collision_debug_flag_objects_projectiles|collision_debug_flag_objects_equipment|collision_debug_flag_objects_weapons|collision_debug_flag_objects_vehicles|collision_debug_flag_objects_bipeds|collision_debug_flag_objects|collision_debug_flag_media|collision_debug_flag_structure|collision_debug_flag_ignore_breakable_surfaces|collision_debug_flag_ignore_invisible_surfaces|collision_debug_flag_ignore_two_sided_surfaces|collision_debug_flag_back_facing_surfaces|collision_debug_flag_front_facing_surfaces|collision_debug_repeat|collision_debug_features|collision_debug_spray|collision_debug|debug_motion_sensor_draw_all_units|debug_physics_disable_penetration_freeze|debug_point_physics|debug_trigger_volumes|debug_scripting|debug_damage|render_shadows|render_model_no_geometry|render_model_markers|render_model_index_counts|render_model_vertex_counts|render_model_nodes|debug_objects_equipment_messages|debug_objects_projectile_messages|debug_objects_weapon_messages|debug_objects_vehicle_messages|debug_objects_biped_messages|debug_objects_devices|debug_objects_vehicle_powered_mass_points|debug_objects_biped_autoaim_pills|debug_objects_biped_physics_pills|debug_objects_unit_mouth_apeture|debug_objects_unit_seats|debug_objects_unit_vectors|debug_objects_pathfinding_spheres|debug_objects_names|debug_objects_physics|debug_objects_collision_models|debug_objects_bounding_spheres|debug_objects_root_node|debug_objects_position_velocity|debug_objects|render_wsystems|render_psystems|render_particles|render_contrails|debug_inactive_objects|debug_sprites|debug_portals|model_animation_bullshit3|model_animation_bullshit2|model_animation_bullshit1|model_animation_bullshit0|model_animation_data_compression_savings_in_percent|model_animation_data_compression_savings_in_bytes_at_import|model_animation_data_compression_savings_in_bytes|model_animation_data_uncompressed_size|model_animation_data_compressed_size|model_animation_compression|profile_dump_lost_frames|profile_dump_frames|profile_timebase_ticks|profile_display|profile_graph|collision_log_time|collision_log_totals_only|collision_log_extended|collision_log_detailed|collision_log_render|cl_remote_player_action_queue_tick_limit|cl_remote_player_action_queue_limit|sv_client_action_queue_tick_limit|sv_client_action_queue_limit|multiplayer_hit_sound_volume|speed_hack_log_level|speed_hack_detection|debug_score|remote_player_log_level|local_player_log_level|client_log_destination|log_server_player_update_history|use_new_vehicle_update_scheme|use_super_remote_players_action_update|remote_player_vehicle_baseline_update_rate|remote_player_vehicle_update_rate|remote_player_position_baseline_update_rate|remote_player_position_update_rate|remote_player_action_baseline_update_rate|remote_player_action_update_rate|local_player_vehicle_update_rate|local_player_update_rate|biped_incremental_rate|stun_enable|rider_ejection|object_light_interpolate|object_light_secondary_scale|object_light_ambient_scale|object_light_ambient_base|debug_sound_environment|sound_obstruction_ratio|debug_sound_cache_graph|sound_cache_size|sound_gain_under_dialog|loud_dialog_hack|debug_sound_hardware|debug_sound_channels_detail|debug_sound_channels|debug_looping_sound|debug_sound_cache|debug_effects_nonviolent|effects_corpse_nonviolent|cheat_controller|cheat_omnipotent|cheat_reflexive_damage_effects|cheat_bump_possession|cheat_infinite_ammo|cheat_jetpack|debug_damage_taken|debug_unit_illumination|debug_unit_animations|debug_unit_all_animations|object_prediction|debug_leaf_portals|debug_leaf_portal_index|debug_leaf_index|debug_input_target|debug_no_drawing|debug_render_freeze|debug_object_garbage_collection|temporary_hud|texture_cache_size|debug_texture_cache|debug_detail_objects|structures_use_pvs_for_vs|recover_saved_games_hack|debug_bink|debug_frustum|debug_no_frustum_clip|rasterizer_d3dlight_attenuation2|rasterizer_d3dlight_attenuation1|rasterizer_d3dlight_attenuation0|rasterizer_d3dlight_falloff|rasterizer_d3dlight_phi|rasterizer_d3dlight_theta|rasterizer_effects_level|rasterizer_transparent_pixel_counter|f5|f4|f3|f2|f1|f0|pad3_scale|pad3|rasterizer_profile_objectlock_time|rasterizer_profile_print_locks|rasterizer_splitscreen_VB_optimization|rasterizer_filthy_decal_fog_hack|rasterizer_zsprites|freeze_flying_camera|rasterizer_safe_frame_bounds|force_all_player_views_to_default_player|rasterizer_zoffset|rasterizer_zbias|rasterizer_detail_objects_offset_multiplier|rasterizer_profile_log|rasterizer_secondary_render_target_debug|rasterizer_soft_filter|rasterizer_DXTC_noise|rasterizer_screen_effects|rasterizer_screen_flashes|rasterizer_ray_of_buddha|rasterizer_lens_flares_occlusion_debug|rasterizer_lens_flares_occlusion|rasterizer_plasma_energy|rasterizer_active_camouflage_multipass|rasterizer_active_camouflage|rasterizer_water_mipmapping|rasterizer_shadows_debug|rasterizer_shadows_convolution|rasterizer_environment_specular_mask|rasterizer_environment_alpha_testing|rasterizer_model_lighting_ambient|rasterizer_lightmaps_filtering|rasterizer_lightmaps_incident_radiosity|rasterizer_lightmap_mode|rasterizer_lightmap_ambient|rasterizer_bump_mapping|rasterizer_debug_geometry_multipass|rasterizer_debug_geometry|rasterizer_detail_objects|rasterizer_hud_motion_sensor|rasterizer_dynamic_screen_geometry|rasterizer_dynamic_lit_geometry|rasterizer_dynamic_unlit_geometry|rasterizer_lens_flares|rasterizer_water|rasterizer_environment_fog_screen|rasterizer_environment_fog|rasterizer_environment_transparents|rasterizer_environment_reflections|rasterizer_environment_reflection_mirrors|rasterizer_environment_reflection_lightmap_mask|rasterizer_environment_specular_lightmaps|rasterizer_environment_specular_lights|rasterizer_environment_decals|rasterizer_environment_diffuse_lights|rasterizer_environment_shadows|rasterizer_environment_lightmaps|rasterizer_environment|rasterizer_stencil_mask|rasterizer_draw_first_person_weapon_first|rasterizer_model_transparents|rasterizer_models|rasterizer_debug_meter_shader|rasterizer_debug_transparents|rasterizer_debug_model_lod|rasterizer_debug_model_vertices|rasterizer_smart|rasterizer_mode|rasterizer_stats|rasterizer_frame_bounds_bottom|rasterizer_frame_bounds_top|rasterizer_frame_bounds_right|rasterizer_frame_bounds_left|rasterizer_refresh_rate|rasterizer_framerate_stabilization|rasterizer_framerate_throttle|rasterizer_floating_point_zbuffer|rasterizer_first_person_weapon_far_clip_distance|rasterizer_first_person_weapon_near_clip_distance|rasterizer_far_clip_distance|rasterizer_near_clip_distance|console_dump_to_file|terminal_render|oddball_baseline_rate|projectile_incremental_rate|equipment_incremental_rate|weapon_incremental_rate|allow_client_side_weapon_projectiles|net_graph_period|net_graph_enabled|network_connect_timeout|net_bandwidth|leaf_to_leaf_latency|transport_dumping|rasterizer_frame_drop_ms|debug_game_save|display_precache_progress|display_framerate|debug_framerate|framerate_lock|framerate_throttle|player_spawn_count|screenshot_count|screenshot_size|COMPONENT_NAME|COMPONENT_TYPE)\\b"
+                }
+            ]
+        },
+        "preprocessor_commands": {
+            "patterns": [
+                {
+                    "name": "meta.preprocessor",
+                    "match": "(#if|#ifdef|#ifndef|#ifeq|#ifneq|#else|#elif|#endif|#define|#defeval|#undef|#include|#exec|#eval|#mode|#line|#file|#error|#warning|player0_cached|player0_cache_refresh)\\b"
+                }
+            ]
+        }
+    }
+}

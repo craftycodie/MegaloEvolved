@@ -803,7 +803,7 @@ export interface BeginParameters {
 }
 
 export interface HsFunctionCallParameters {
-  functionNameIndex: number; // object_lists/stringids.txt
+  functionNameIndex: number; // index in object_lists/strings.txt
 }
 
 export const scriptableGameButtons = megaloEnum([

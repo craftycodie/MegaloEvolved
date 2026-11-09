@@ -121,6 +121,7 @@ export const requestArtifactsFromSnapshot = async (
         resolveBaseFile: options.resolvers?.resolveBaseFile,
         megacrowExtensions: session.megacrowExtensions,
         compilerSettings: session.compilerSettings,
+        buildNumber: session.gameBuildNumber,
         fileType,
       });
     // Diagnostics-only and `mglo` compile identically (`mglo` is the default

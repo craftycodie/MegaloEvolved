@@ -67,8 +67,6 @@ const LOCALIZED_DESCRIPTION = {
   countBitLength: 1,
 } as const;
 
-const DEFAULT_BUILD_NUMBER = 8516;
-
 export class Compiler49 extends Compiler {
   private compileStringTable(
     irStrings: StringTable,
@@ -210,9 +208,6 @@ export class Compiler49 extends Compiler {
       compileTriggers(ir, gametype, diagnostics);
     }
 
-    if (gametype.m_build_number < 0) {
-      gametype.m_build_number = DEFAULT_BUILD_NUMBER;
-    }
     gametype.m_encoding_version = 49;
 
     return gametype;

@@ -2328,6 +2328,62 @@ body {
   color: #f1948a;
 }
 
+.files-error-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  padding: 12px;
+  background: rgba(241, 148, 138, 0.08);
+  border: 1px solid rgba(241, 148, 138, 0.35);
+  border-radius: 6px;
+}
+
+.files-error-card p {
+  margin: 0;
+}
+
+.files-error-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #f1948a;
+}
+
+.files-error-card-path {
+  max-width: 100%;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.files-error-card-detail {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.files-error-card-action {
+  padding: 5px 10px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+}
+
+.files-error-card-action:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.files-error-card-action:focus-visible {
+  outline: 1px solid #f1948a;
+  outline-offset: 2px;
+}
+
 .files-empty {
   display: flex;
   flex-direction: column;
@@ -3198,6 +3254,18 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.status-message {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.status-message-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

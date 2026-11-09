@@ -46,7 +46,7 @@ const compileTeamOption = (
   team: GameEngineTeamOptionsTeam,
   teamIndex: number
 ): void => {
-  target.m_team_enabled = true;
+  target.m_flags.team_enabled = true;
   if (team.designator === undefined) {
     // Missing designator defaults to the team slot index.
     target.m_team_initial_designator = teamIndex;
@@ -62,7 +62,7 @@ const compileTeamOption = (
     target.m_fireteam_count = team.fireteamCount;
   }
   if (team.teamColor !== undefined) {
-    target.m_override_color_armour = true;
+    target.m_flags.override_color_armour = true;
     target.m_team_color_override = encodeColor(team.teamColor);
   }
   if (team.name !== undefined) {
@@ -103,7 +103,7 @@ export const compileTeams = (
   }
   // First authored team entry clears the default enabled slots (ManagedMegalo).
   for (const target of teamOptions.m_teams) {
-    target.m_team_enabled = false;
+    target.m_flags.team_enabled = false;
     target.m_team_initial_designator = e_multiplayer_team_designator.none;
     target.m_name.strings = emptyTeamNameStrings();
   }

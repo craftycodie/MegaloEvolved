@@ -17,8 +17,8 @@ const MAX_MIN = 0x7f;
 const compileObjectFilter = (filter: ObjectFilter): c_object_filter => {
   const target = new c_object_filter();
   if (filter.label !== undefined) {
-    // 1-indexed, 0 is no label.
-    target.m_label_string_index = filter.label + 1;
+    // String index; BLF writes it 1-based on the wire (0 = no label).
+    target.m_label_string_index = filter.label;
   }
   if (filter.objectType !== undefined) {
     target.m_valid_parameters.object_type = true;

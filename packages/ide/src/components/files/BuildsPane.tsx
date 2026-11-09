@@ -1,6 +1,7 @@
 import type { MouseEvent } from "react";
 import { useT } from "../../localization";
 import { BuiltGametypeGlyph } from "./FilesGlyphs";
+import { FolderErrorCard } from "./FolderErrorCard";
 import {
   BUILDS_PANE_MAX_HEIGHT,
   BUILDS_PANE_MIN_HEIGHT,
@@ -14,15 +15,23 @@ interface BuildOutput {
 interface Props {
   buildOutputs: BuildOutput[];
   buildsError: string | null;
+  /** Opens the workspace editor; shown on the folder-read error card. */
+  editWorkspace?: () => void;
   onClearEditor?: () => void;
   onContextMenu: (event: MouseEvent, name: string) => void;
+  /** The output folder cannot be read; replaces the build list. */
+  outputError: string | null;
+  outputPath: string;
 }
 
 export function BuildsPane({
   buildOutputs,
   buildsError,
+  editWorkspace,
   onClearEditor,
   onContextMenu,
+  outputError,
+  outputPath,
 }: Props) {
   const t = useT();
   const {
@@ -74,10 +83,17 @@ export function BuildsPane({
             role="separator"
           />
           <div className="files-builds-body" style={{ height: buildsHeight }}>
-            {buildsError ? (
+            {outputError ? (
+              <FolderErrorCard
+                error={outputError}
+                onEditWorkspace={editWorkspace}
+                path={outputPath}
+                title={t("files_output_unreadable")}
+              />
+            ) : buildsError ? (
               <p className="files-hint files-hint--error">{buildsError}</p>
             ) : null}
-            {buildOutputs.length === 0 && !buildsError ? (
+            {outputError ? null : buildOutputs.length === 0 && !buildsError ? (
               <div className="files-empty files-empty--compact">
                 <p>{t("files_no_built_gametypes_yet")}</p>
                 <span>{t("files_use_build_hint")}</span>

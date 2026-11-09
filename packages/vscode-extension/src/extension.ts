@@ -32,6 +32,7 @@ import {
 } from "./resolveHandlers";
 import {
   DEFAULT_MEGALO_VERSION,
+  defaultGameBuildNumberFor,
   isMegaloVersionId,
   labelForMegaloVersion,
   MEGALO_VERSION_OPTIONS,
@@ -104,16 +105,18 @@ const updateVersionStatusBar = (): void => {
 /** The whole server configuration, built from the `megacrow.*` settings. */
 const buildServerConfig = (): MegacrowConfig => {
   const config = workspace.getConfiguration("megacrow");
+  const megaloVersion = readConfiguredVersion();
   return {
     compilerSettings: {
       strictStringLiterals: config.get<boolean>("strictStringLiterals", false),
       creatorGamertag: config.get<string>("gametypeAuthor", "MegaCrow"),
     },
+    gameBuildNumber: defaultGameBuildNumberFor(megaloVersion),
     locale: config.get<string>("locale", "en") === "ja" ? "ja" : "en",
     megacrowExtensions: config.get<boolean>("megacrowExtensions", true)
       ? ALL_MEGACROW_EXTENSIONS
       : DEFAULT_MEGACROW_EXTENSIONS,
-    megaloVersion: readConfiguredVersion(),
+    megaloVersion,
     // VS Code uses the bundled object lists and always resolves base files.
     objectLists: null,
     resolveBaseFile: true,

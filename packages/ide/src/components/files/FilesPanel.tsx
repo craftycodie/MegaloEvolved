@@ -86,6 +86,13 @@ export function FilesPanel({
       ? workspace.outputPath.trim()
       : null;
   const megaloVersion = workspace?.megaloVersion ?? "107-mcc";
+  const storedWorkspace = workspaces.find(
+    (entry) => entry.id === workspace?.id
+  );
+  const editWorkspace =
+    onEditWorkspace && storedWorkspace
+      ? () => onEditWorkspace(storedWorkspace)
+      : undefined;
 
   const {
     ensureExpandedKeys,
@@ -93,6 +100,7 @@ export function FilesPanel({
     localError,
     localTree,
     refreshLocal,
+    rootError,
     setEnsureExpandedKeys,
     setLocalError,
     tauriAvailable,
@@ -134,8 +142,13 @@ export function FilesPanel({
     tauriAvailable,
   });
 
-  const { buildOutputs, buildsError, refreshBuilds, setBuildsError } =
-    useBuildOutputs(outputPath, localDiskRevision);
+  const {
+    buildOutputs,
+    buildsError,
+    outputError,
+    refreshBuilds,
+    setBuildsError,
+  } = useBuildOutputs(outputPath, localDiskRevision);
 
   const contextMenu = useFilesPanelContextMenu({
     diskOps,
@@ -286,12 +299,14 @@ export function FilesPanel({
             }
             onCreateFile={() => void diskOps.createLocalFile([])}
             onCreateFolder={() => void diskOps.createLocalFolder([])}
+            onEditWorkspace={editWorkspace}
             onMoveEntries={(fromPaths, toParentPath) =>
               void diskOps.moveLocalEntries(fromPaths, toParentPath)
             }
             onOpenFile={(path) => void diskOps.openLocalFile(path)}
             onRegenerateObjectLists={diskOps.requestRegenerateObjectLists}
             renamingPathKey={renamingPathKey}
+            rootError={rootError}
             workspaceId={workspace?.id}
           />
         ) : null}
@@ -300,6 +315,7 @@ export function FilesPanel({
           <BuildsPane
             buildOutputs={buildOutputs}
             buildsError={buildsError}
+            editWorkspace={editWorkspace}
             onClearEditor={onClearEditor}
             onContextMenu={(event, name) => {
               event.preventDefault();
@@ -310,6 +326,8 @@ export function FilesPanel({
                 target: { type: "file", path: [name] },
               });
             }}
+            outputError={outputError}
+            outputPath={outputPath}
           />
         ) : null}
 

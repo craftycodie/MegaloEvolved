@@ -10,6 +10,8 @@ import {
 export class MegacrowSession {
   megacrowExtensions: MegacrowExtensions = ALL_MEGACROW_EXTENSIONS;
   compilerSettings: Partial<CompilerSettings> = {};
+  /** `undefined` = no build (-1). */
+  gameBuildNumber: number | undefined = undefined;
   megaloVersion: SupportedMegaloVersion = MEGALO_VERSIONS["107-mcc"];
 
   setMegacrowExtensions(extensions: MegacrowExtensions): void {

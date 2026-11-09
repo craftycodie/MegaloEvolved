@@ -80,6 +80,7 @@ export const startMegacrowLanguageServer = (connection: Connection): void => {
     config = next;
     session.setMegacrowExtensions(next.megacrowExtensions);
     session.setCompilerSettings(next.compilerSettings);
+    session.gameBuildNumber = next.gameBuildNumber ?? undefined;
     session.setMegaloVersion(next.megaloVersion);
     workspaceObjectLists = next.objectLists ?? undefined;
     resolveBaseFileEnabled = next.resolveBaseFile;

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { isTauriRuntime } from "../../desktop";
 import type { BuildOutputEntry } from "../../files";
 import { listTauriBuildOutputs } from "../../files";
+import { translateDiskError } from "../../localization";
 import { watchWorkspaceInput } from "../../workspace";
 
 export function useBuildOutputs(
@@ -11,18 +12,22 @@ export function useBuildOutputs(
   const tauriAvailable = isTauriRuntime();
   const [buildOutputs, setBuildOutputs] = useState<BuildOutputEntry[]>([]);
   const [buildsError, setBuildsError] = useState<string | null>(null);
+  /** Set when the output folder itself cannot be listed. */
+  const [outputError, setOutputError] = useState<string | null>(null);
 
   const refreshBuilds = useCallback(async () => {
     if (!outputPath) {
       setBuildOutputs([]);
       setBuildsError(null);
+      setOutputError(null);
       return;
     }
     try {
       setBuildsError(null);
       setBuildOutputs(await listTauriBuildOutputs(outputPath));
+      setOutputError(null);
     } catch (error) {
-      setBuildsError(String(error));
+      setOutputError(translateDiskError(error));
       setBuildOutputs([]);
     }
   }, [outputPath]);
@@ -64,6 +69,7 @@ export function useBuildOutputs(
   return {
     buildOutputs,
     buildsError,
+    outputError,
     refreshBuilds,
     setBuildsError,
   };

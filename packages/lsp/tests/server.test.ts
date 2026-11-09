@@ -73,6 +73,30 @@ describe("megacrow language server", () => {
     expect(compileSpy).toHaveBeenCalledTimes(2);
   });
 
+  it("passes the configured game build number to the compiler", async () => {
+    server = await startTestServer({
+      config: {
+        ...DEFAULT_MEGACROW_CONFIG,
+        megaloVersion: "107",
+        gameBuildNumber: 12_065,
+      },
+    });
+    const uri = "file:///test/build.txt";
+
+    await openDocument(server.client, uri, VALID_SOURCE);
+    await vi.waitFor(() => expect(publishedUris(server!)).toContain(uri));
+    expect(compileSpy.mock.lastCall?.[1]?.buildNumber).toBe(12_065);
+  });
+
+  it("compiles with no build number when none is configured", async () => {
+    server = await startTestServer();
+    const uri = "file:///test/no-build.txt";
+
+    await openDocument(server.client, uri, VALID_SOURCE);
+    await vi.waitFor(() => expect(publishedUris(server!)).toContain(uri));
+    expect(compileSpy.mock.lastCall?.[1]?.buildNumber).toBeUndefined();
+  });
+
   it("republishes every open document after a settings change", async () => {
     server = await startTestServer();
     const uris = [1, 2, 3].map((n) => `file:///test/doc${n}.txt`);

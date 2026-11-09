@@ -105,6 +105,11 @@ export type MegacrowListDirectoryResult =
  */
 export interface MegacrowConfig {
   compilerSettings: Partial<CompilerSettings>;
+  /**
+   * Game build number written into the variant, or `null` for none (-1).
+   * The compiler has no defaults; the host picks the build.
+   */
+  gameBuildNumber: number | null;
   /** Diagnostics / hover locale. */
   locale: "en" | "ja";
   megacrowExtensions: MegacrowExtensions;

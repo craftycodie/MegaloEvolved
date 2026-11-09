@@ -4,6 +4,7 @@ import type MarkdownIt from "markdown-it";
 import { defineConfig } from "vitepress";
 import type { DefaultTheme } from "vitepress/theme";
 import { MEGACROW_BUILD_STRING } from "../../megalo/src/build-info";
+import haloscriptGrammar from "./grammars/haloscript.tmLanguage.json";
 import languageActions from "./language-actions.json";
 import languageVersions from "./language-versions.json";
 import {
@@ -641,6 +642,8 @@ export default defineConfig(async () => {
         light: "github-light",
         dark: "github-dark",
       },
+      // HaloScript grammar from Unordinal/Haloscript-Syntax (MIT, see grammars/).
+      languages: [{ ...haloscriptGrammar, name: "haloscript" }],
       config(md: MarkdownIt) {
         const shikiHighlight = md.options.highlight;
         if (!shikiHighlight) {

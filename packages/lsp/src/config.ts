@@ -27,6 +27,7 @@ export const megacrowConfigSchema = z.object({
       temporaryVariablesCanOverflowIntoUnusedGlobalVariables: z.boolean(),
     })
     .partial(),
+  gameBuildNumber: z.number().int().nullable(),
   locale: z.enum(["en", "ja"]),
   megacrowExtensions: megacrowExtensionsSchema,
   megaloVersion: z
@@ -62,6 +63,7 @@ export const parseConfig = (raw: unknown): ParseConfigResult => {
 /** Server defaults until the client sends its configuration. */
 export const DEFAULT_MEGACROW_CONFIG: MegacrowConfig = {
   compilerSettings: {},
+  gameBuildNumber: null,
   locale: "en",
   megacrowExtensions: ALL_MEGACROW_EXTENSIONS,
   megaloVersion: "107-mcc",

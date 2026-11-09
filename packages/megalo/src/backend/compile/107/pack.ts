@@ -8,17 +8,15 @@ import {
   s_blf_chunk_game_variant,
   s_blf_chunk_packed_game_variant,
   s_blf_chunk_start_of_file,
-  s_content_item_display_metadata,
-  s_content_item_game_variant_metadata,
-  s_content_item_general_metadata,
-  s_content_item_history,
+  type s_content_item_history,
 } from "@blamnetwork/blf/haloreach/v12065_11_08_24_1738_tu1actual";
 import type { CompiledMegaloFileType } from "src/backend/compile/compiler";
 
+/** `chdr.build_number` is a u16; -1 ("no build") is written as 0xffff. */
+const NO_BUILD_NUMBER = 0xff_ff;
+
 const { c_bitstream_reader, c_bitstream_writer, e_bitstream_byte_order } =
   bitstream;
-
-const DEFAULT_BUILD_NUMBER = 12065;
 
 const encodeCustomVariantBitstream = (
   custom: c_game_engine_custom_variant
@@ -44,14 +42,12 @@ const wrapGameVariant = (
 
 const copyHistory = (
   source: s_content_item_history
-): s_content_item_history => {
-  const history = new s_content_item_history();
-  history.timestamp = source.timestamp;
-  history.xuid = source.xuid;
-  history.name = source.name;
-  history.is_online = source.is_online;
-  return history;
-};
+): s_content_item_history => ({
+  timestamp: source.timestamp,
+  xuid: source.xuid,
+  name: source.name,
+  is_online: source.is_online,
+});
 
 const buildContentHeader = (
   custom: c_game_engine_custom_variant,
@@ -59,29 +55,22 @@ const buildContentHeader = (
 ): s_blf_chunk_content_header => {
   const source = custom.m_base_variant.m_metadata;
   const chdr = new s_blf_chunk_content_header();
+  // Unset build (-1) is stored as 0xffff, as MCC's own game variants do.
   chdr.build_number =
-    custom.m_build_number > 0 ? custom.m_build_number : DEFAULT_BUILD_NUMBER;
+    custom.m_build_number >= 0 ? custom.m_build_number : NO_BUILD_NUMBER;
   chdr.build_sequence_number = 0;
 
-  chdr.metadata.general = Object.assign(new s_content_item_general_metadata(), {
-    ...source.general,
-    size_in_bytes: sizeInBytes,
-  });
-  chdr.metadata.display = Object.assign(
-    new s_content_item_display_metadata(),
-    source.display
-  );
+  chdr.metadata.general = { ...source.general, size_in_bytes: sizeInBytes };
+  chdr.metadata.display = { ...source.display };
   chdr.metadata.creation_history = copyHistory(source.creation_history);
   chdr.metadata.modification_history = copyHistory(source.modification_history);
   chdr.metadata.name = source.name;
   chdr.metadata.description = source.description;
-  if (source.file_type_data instanceof s_content_item_game_variant_metadata) {
-    const fileTypeData = new s_content_item_game_variant_metadata();
-    fileTypeData.icon_index = source.file_type_data.icon_index;
-    chdr.metadata.file_type_data = fileTypeData;
-  } else {
-    chdr.metadata.file_type_data = source.file_type_data;
-  }
+  const fileTypeData = source.file_type_data;
+  chdr.metadata.file_type_data =
+    fileTypeData !== null && "icon_index" in fileTypeData
+      ? { icon_index: fileTypeData.icon_index }
+      : fileTypeData;
   chdr.metadata.activity_data = source.activity_data;
   chdr.metadata.game_mode_data = source.game_mode_data;
   return chdr;

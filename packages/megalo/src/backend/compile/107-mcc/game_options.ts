@@ -369,16 +369,16 @@ export const compileGameOptions = (
   const misc = base.m_miscellaneous_options;
   const { miscellaneousOptions } = baseVariant;
   if (miscellaneousOptions.teamsEnabled !== undefined) {
-    misc.m_teams_enabled = miscellaneousOptions.teamsEnabled;
+    misc.m_flags.teams_enabled = miscellaneousOptions.teamsEnabled;
   }
   if (miscellaneousOptions.roundResetPlayers !== undefined) {
-    misc.m_round_reset_players = miscellaneousOptions.roundResetPlayers;
+    misc.m_flags.round_reset_players = miscellaneousOptions.roundResetPlayers;
   }
   if (miscellaneousOptions.roundResetMap !== undefined) {
-    misc.m_round_reset_map = miscellaneousOptions.roundResetMap;
+    misc.m_flags.round_reset_map = miscellaneousOptions.roundResetMap;
   }
   if (miscellaneousOptions.perfectionEnabled !== undefined) {
-    misc.m_perfection_enabled = miscellaneousOptions.perfectionEnabled;
+    misc.m_flags.perfection_enabled = miscellaneousOptions.perfectionEnabled;
   }
   if (miscellaneousOptions.roundTimeLimitMinutes !== undefined) {
     misc.m_round_time_limit_minutes =
@@ -416,16 +416,16 @@ export const compileGameOptions = (
   const respawn = base.m_respawn_options;
   const { respawnOptions } = baseVariant;
   if (respawnOptions.inheritRespawnTime !== undefined) {
-    respawn.m_inherit_respawn_time = respawnOptions.inheritRespawnTime;
+    respawn.m_flags.inherit_respawn_time = respawnOptions.inheritRespawnTime;
   }
   if (respawnOptions.respawnWithTeammate !== undefined) {
-    respawn.m_respawn_with_teammate = respawnOptions.respawnWithTeammate;
+    respawn.m_flags.respawn_with_teammate = respawnOptions.respawnWithTeammate;
   }
   if (respawnOptions.respawnAtLocation !== undefined) {
-    respawn.m_respawn_at_location = respawnOptions.respawnAtLocation;
+    respawn.m_flags.respawn_at_location = respawnOptions.respawnAtLocation;
   }
   if (respawnOptions.respawnOnKills !== undefined) {
-    respawn.m_respawn_on_kills = respawnOptions.respawnOnKills;
+    respawn.m_flags.respawn_on_kills = respawnOptions.respawnOnKills;
   }
   if (respawnOptions.livesPerRound !== undefined) {
     respawn.m_lives_per_round = respawnOptions.livesPerRound;

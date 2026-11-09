@@ -13,6 +13,7 @@ let configuredWorkspace: Workspace | null = null;
 /** Latest server configuration; also sent as `initializationOptions` on connect. */
 let lspConfig: MegacrowConfig = {
   compilerSettings: {},
+  gameBuildNumber: null,
   locale: "en",
   megacrowExtensions: ALL_MEGACROW_EXTENSIONS,
   megaloVersion: "107-mcc",

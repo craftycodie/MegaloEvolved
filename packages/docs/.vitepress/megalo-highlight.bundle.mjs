@@ -3338,6 +3338,17 @@ var parseSlot = (ctx, slot, anchor) => {
   }
   return [consumeLenientParameter(ctx, anchor)];
 };
+var skipOperandTokens = (ctx) => {
+  if (isTriggerStatementBoundary(ctx.peekToken())) {
+    return false;
+  }
+  ctx.getToken();
+  while (ctx.peekToken()?.kind === 2 /* MemberVariableSeparator */ && ctx.peekToken(1) !== void 0) {
+    ctx.getToken();
+    ctx.getToken();
+  }
+  return true;
+};
 var tryParseSignature = (ctx, signature) => {
   const parameters = [];
   for (const slot of signature) {
@@ -3377,10 +3388,13 @@ var parameterParserBuilder = (...signatures) => {
       let score = 0;
       for (const slot of signature) {
         const parsed = tryParseSlot(ctx, slot);
-        if (parsed === void 0) {
+        if (parsed !== void 0) {
+          score += 1;
+          continue;
+        }
+        if (!skipOperandTokens(ctx)) {
           break;
         }
-        score += 1;
       }
       ctx.reset(mark);
       if (score > bestScore) {
@@ -6785,7 +6799,7 @@ var ActionParserRepository = class {
     );
     this.registerParser(
       "hs_function_call",
-      parameterParserBuilder([0 /* Keyword */])
+      parameterParserBuilder([ObjectListParameter("strings" /* Strings */)])
     );
     this.registerParser(
       "get_button_time",
@@ -15586,7 +15600,7 @@ var applyPlayerTraitsHover = defineActionHover("apply_player_traits", {
 
 // ../megalo/src/language-service/hover/actions/begin.ts
 var beginHover = defineActionHover("begin", {
-  grammar: "action begin"
+  grammar: "begin"
 });
 
 // ../megalo/src/language-service/hover/actions/biped_drop_weapon.ts
@@ -17719,8 +17733,7 @@ var highlightHideObject = (out, statement) => {
 
 // ../megalo/src/language-service/highlighting/actions/hs_function_call.ts
 var highlightHsFunctionCall = (out, statement) => {
-  const p2 = statement.parameters;
-  highlightParameterKeyword(out, p2[0]);
+  highlightStructural(out, statement.parameters[0]);
 };
 
 // ../megalo/src/language-service/highlighting/actions/hud_post_message.ts

@@ -192,10 +192,11 @@ const assignSetBoundaryParameters = (
       params.m_variable_4 = encodeCustomVariableReference(boundary.negHeight);
       break;
     case BoundaryShape.cylinder:
-      // MegaloEdit encode order: radius, pos_height, neg_height
+      // MegaloEdit encode order: radius, pos_height, neg_height. The heights
+      // use the same slots as a box's (variables 3 and 4).
       params.m_variable_1 = encodeCustomVariableReference(boundary.radius);
-      params.m_variable_2 = encodeCustomVariableReference(boundary.posHeight);
-      params.m_variable_3 = encodeCustomVariableReference(boundary.negHeight);
+      params.m_variable_3 = encodeCustomVariableReference(boundary.posHeight);
+      params.m_variable_4 = encodeCustomVariableReference(boundary.negHeight);
       break;
     default: {
       const _exhaustive: never = boundary;
@@ -1094,7 +1095,8 @@ const compileAction = (
     }
     case ActionType.hs_function_call: {
       const params = new s_action_hs_function_call_parameters();
-      params.m_function_name_index = action.parameters.functionNameIndex + 1;
+      // BLF writes index + 1 on the wire.
+      params.m_function_name_index = action.parameters.functionNameIndex;
       target.m_hs_function_call_parameters = params;
       break;
     }

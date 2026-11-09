@@ -39,20 +39,18 @@ export function preloadCompileClient(): void {
 }
 
 export function syncMegaloWorkspace(workspace: Workspace | null): void {
-  setCompileMegaloVersion(workspace?.megaloVersion ?? "107-mcc");
-  setCompileGameBuildNumber(
-    workspace
-      ? resolveGameBuildNumber(
-          workspace.megaloVersion,
-          workspace.gameBuildNumber
-        )
-      : undefined
-  );
+  const megaloVersion = workspace?.megaloVersion ?? "107-mcc";
+  // The compiler has no default builds; the IDE picks one (or none = -1).
+  const gameBuildNumber =
+    resolveGameBuildNumber(megaloVersion, workspace?.gameBuildNumber) ?? null;
+  setCompileMegaloVersion(megaloVersion);
+  setCompileGameBuildNumber(gameBuildNumber);
   void import("../lsp/lspClient").then(
     ({ lspConfigureResolveContext, lspUpdateConfig }) => {
       lspConfigureResolveContext({ workspace });
       lspUpdateConfig({
-        megaloVersion: workspace?.megaloVersion ?? "107-mcc",
+        gameBuildNumber,
+        megaloVersion,
         resolveBaseFile: !!workspace?.outputPath?.trim(),
       });
     }

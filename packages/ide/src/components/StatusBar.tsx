@@ -132,9 +132,24 @@ export function StatusBar({
             </span>
           )}
       </div>
-      <div className="status-bar-center" title={message}>
-        {message}
-      </div>
+      {/* Only an error message opens the problems pane. */}
+      {compileState === "error" && message ? (
+        <div className="status-bar-center">
+          <button
+            aria-pressed={diagnosticsOpen}
+            className="status-problems status-message"
+            onClick={onToggleDiagnostics}
+            title={message}
+            type="button"
+          >
+            <span className="status-message-text">{message}</span>
+          </button>
+        </div>
+      ) : (
+        <div className="status-bar-center" title={message}>
+          {message}
+        </div>
+      )}
       <div className="status-bar-right">
         <VariantCapacityMeter
           capacityBytes={variantCapacity}

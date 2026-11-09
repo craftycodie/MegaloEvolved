@@ -20,7 +20,7 @@
     "link:blf": "npm run build --prefix ../../../blf/blf-ts && npm link @blamnetwork/blf --workspace=@megacrow/ide"
   },
   "dependencies": {
-    "@blamnetwork/blf": "^1.1.0-beta.17",
+    "@blamnetwork/blf": "^1.2.0-alpha.4",
     "@megacrow/lsp": "*",
     "@megacrow/megalo": "*",
     "@monaco-editor/react": "^4.7.0",

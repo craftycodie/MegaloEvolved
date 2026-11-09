@@ -4,7 +4,6 @@ import {
   e_game_engine_type,
   e_game_mode,
   e_gui_game_mode,
-  s_content_item_game_variant_metadata,
 } from "@blamnetwork/blf/haloreach_mcc/v_untracked_25_08_16_1352";
 import { encodeGameEngineCategory } from "src/backend/compile/107-mcc/enums/e_game_engine_category";
 import { assignContentUniqueIds } from "src/backend/compile/contentUniqueIds";
@@ -44,15 +43,15 @@ export const compileMetadata = (
   metadata.general.game_engine_type = e_game_engine_type.megalogamengine;
   assignContentUniqueIds(metadata.general);
 
-  if (
-    !(metadata.file_type_data instanceof s_content_item_game_variant_metadata)
-  ) {
-    metadata.file_type_data = new s_content_item_game_variant_metadata();
-  }
+  const fileTypeData =
+    metadata.file_type_data !== null && "icon_index" in metadata.file_type_data
+      ? metadata.file_type_data
+      : { icon_index: 0 };
+  metadata.file_type_data = fileTypeData;
 
   if (variant.engineIcon !== undefined) {
     gameVariant.m_engine_icon = variant.engineIcon;
-    metadata.file_type_data.icon_index = variant.engineIcon;
+    fileTypeData.icon_index = variant.engineIcon;
   }
 
   if (variant.engineCategory !== undefined) {
