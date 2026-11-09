@@ -4,7 +4,7 @@
   "description": "Language Server for Halo's Megalo scripting language.",
   "version": "0.0.0",
   "private": true,
-  "publisher": "craftycodie",
+  "publisher": "blamnetwork",
   "license": "ISC",
   "engines": {
     "vscode": "^1.85.0"

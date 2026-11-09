@@ -1,6 +1,6 @@
 # Publish MegaCrow web to GitHub Pages (no app rebuild).
 #
-# Branch previews are deployed from the Build workflow after megacrow-web uploads.
+# Branch previews are deployed from the Build workflow after megaloevolved-web uploads.
 # This workflow covers:
 #   - Full (non-prerelease) GitHub Release → site root (/)
 #   - Branch deletion → remove /<branch>/
@@ -111,7 +111,7 @@ jobs:
             scripts/rewrite-docs-base.mjs
           sparse-checkout-cone-mode: false
 
-      - name: Download megacrow-web
+      - name: Download megaloevolved-web
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -165,9 +165,14 @@ jobs:
           echo "Using Build run id: $RUN_ID"
 
           mkdir -p dist
-          if ! gh run download "$RUN_ID" --repo "$REPO" --name megacrow-web --dir dist; then
-            echo "Failed to download artifact 'megacrow-web' from run $RUN_ID."
-            exit 1
+          # Builds before the rename uploaded the web dist as 'megacrow-web'.
+          if ! gh run download "$RUN_ID" --repo "$REPO" --name megaloevolved-web --dir dist; then
+            echo "No 'megaloevolved-web' artifact in run $RUN_ID; trying legacy 'megacrow-web'."
+            rm -rf dist && mkdir -p dist
+            if ! gh run download "$RUN_ID" --repo "$REPO" --name megacrow-web --dir dist; then
+              echo "Failed to download web artifact from run $RUN_ID."
+              exit 1
+            fi
           fi
 
       - name: Verify dist
@@ -175,11 +180,11 @@ jobs:
         run: |
           set -euo pipefail
           if [[ ! -f dist/index.html ]]; then
-            echo "megacrow-web artifact is missing index.html"
+            echo "megaloevolved-web artifact is missing index.html"
             find dist -maxdepth 3 -type f | head -n 50 || true
             exit 1
           fi
-          echo "Fetched megacrow-web ($(du -sh dist | cut -f1))"
+          echo "Fetched megaloevolved-web ($(du -sh dist | cut -f1))"
 
       - name: Rewrite docs base for release root
         if: steps.target.outputs.mode == 'root'

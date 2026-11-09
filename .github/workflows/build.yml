@@ -72,7 +72,7 @@ jobs:
       - name: Upload web artifact
         uses: actions/upload-artifact@v4
         with:
-          name: megacrow-web
+          name: megaloevolved-web
           path: packages/ide/dist
           retention-days: 90
 
@@ -103,10 +103,10 @@ jobs:
           echo "destination=$destination" >> "$GITHUB_OUTPUT"
           echo "Deploying Pages preview to /$destination/"
 
-      - name: Download megacrow-web
+      - name: Download megaloevolved-web
         uses: actions/download-artifact@v4
         with:
-          name: megacrow-web
+          name: megaloevolved-web
           path: dist
 
       - name: Verify dist
@@ -114,7 +114,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ ! -f dist/index.html ]]; then
-            echo "megacrow-web artifact is missing index.html"
+            echo "megaloevolved-web artifact is missing index.html"
             find dist -maxdepth 3 -type f | head -n 50 || true
             exit 1
           fi

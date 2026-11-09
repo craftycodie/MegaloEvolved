@@ -157,7 +157,7 @@ jobs:
             done < <(find "$dir" -type f -print0)
           done
 
-          # --- Web dist is published via Pages; do not attach megacrow-web.zip ---
+          # --- Web dist is published via Pages; do not attach megaloevolved-web.zip ---
 
           count=$(find upload -type f | wc -l | tr -d ' ')
           echo "asset_count=$count" >> "$GITHUB_OUTPUT"

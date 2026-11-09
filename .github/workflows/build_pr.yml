@@ -35,7 +35,7 @@ jobs:
       - name: Upload web artifact
         uses: actions/upload-artifact@v4
         with:
-          name: megacrow-web-pr
+          name: megaloevolved-web-pr
           path: packages/ide/dist
 
   tauri:
