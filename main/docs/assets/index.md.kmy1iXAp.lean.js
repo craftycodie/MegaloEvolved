@@ -1,0 +1,1 @@
+import{_ as e,o,c as t,a2 as r}from"./chunks/framework.D7NBeTWs.js";const m=JSON.parse('{"title":"What is MegaloEvolved?","description":"","frontmatter":{},"headers":[],"relativePath":"index.md","filePath":"index.md"}'),i={name:"index.md"};function l(s,a,n,d,g,c){return o(),t("div",null,[...a[0]||(a[0]=[r("",8)])])}const h=e(i,[["render",l]]);export{m as __pageData,h as default};

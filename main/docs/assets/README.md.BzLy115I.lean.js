@@ -1,0 +1,1 @@
+import{_ as s,o as e,c as i,a2 as t}from"./chunks/framework.D7NBeTWs.js";const k=JSON.parse('{"title":"@megacrow/docs","description":"","frontmatter":{},"headers":[],"relativePath":"README.md","filePath":"README.md"}'),l={name:"README.md"};function n(o,a,h,d,p,r){return e(),i("div",null,[...a[0]||(a[0]=[t("",6)])])}const g=s(l,[["render",n]]);export{k as __pageData,g as default};
