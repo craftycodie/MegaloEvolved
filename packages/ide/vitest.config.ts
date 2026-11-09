@@ -47,6 +47,10 @@ export default defineConfig({
   plugins: [megaloSrcAlias()],
   resolve: {
     alias: {
+      "@monaco-themes": resolve(
+        import.meta.dirname,
+        "../../node_modules/monaco-themes/themes"
+      ),
       "@craftycodie/cstruct/dist/advanced": resolve(
         import.meta.dirname,
         "../../node_modules/@craftycodie/cstruct/dist/advanced/index.js"
@@ -54,7 +58,8 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.{ts,tsx}"],
+    setupFiles: ["src/test/setup.ts"],
     testTimeout: 600_000,
     server: {
       deps: {

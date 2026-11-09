@@ -1,18 +1,16 @@
 import type { VariantLimitUsage } from "@megacrow/megalo";
-import { useRef } from "react";
+import { APP_NAME } from "../app/constants";
 import type { CompileState } from "../compile";
-import { type IdeMessageKey, useT } from "../localization";
+import { type IdeLocaleContextValue, useIdeLocale } from "../localization";
+import { useCompile } from "../stores/compileStore";
+import { useDocument } from "../stores/documentStore";
 import { StatusIcon } from "./StatusIcon";
 import { VariantCapacityMeter } from "./VariantCapacityMeter";
 
 interface Props {
-  byteDiffCount: number | null;
-  byteIdentical: boolean | null;
-  column: number;
   compileState: CompileState;
   diagnosticsOpen: boolean;
   errorCount: number;
-  line: number;
   megaCrowVersion: string;
   megaloVersionId: string;
   message: string;
@@ -23,39 +21,8 @@ interface Props {
   warningCount: number;
 }
 
-function isTransientCompileState(state: CompileState): boolean {
-  return state === "parsing";
-}
-
-function useBarColorState(compileState: CompileState): CompileState {
-  const lastSettledState = useRef<CompileState>("idle");
-  if (!isTransientCompileState(compileState)) {
-    lastSettledState.current = compileState;
-  }
-  return isTransientCompileState(compileState)
-    ? lastSettledState.current
-    : compileState;
-}
-
-type Translate = (
-  key: IdeMessageKey,
-  params?: Record<string, string | number>
-) => string;
-
-function formatWarningCount(t: Translate, count: number): string {
-  return t(count === 1 ? "status_warning_one" : "status_warning_other", {
-    count,
-  });
-}
-
-function formatErrorCount(t: Translate, count: number): string {
-  return t(count === 1 ? "status_error_one" : "status_error_other", {
-    count,
-  });
-}
-
 function statusToggleLabel(
-  t: Translate,
+  { t, tPlural }: Pick<IdeLocaleContextValue, "t" | "tPlural">,
   state: CompileState,
   errorCount: number,
   warningCount: number
@@ -68,11 +35,11 @@ function statusToggleLabel(
     case "ok":
       return t("status_ok");
     case "warn":
-      return formatWarningCount(t, warningCount);
+      return tPlural("status_warning", warningCount);
     case "error": {
-      const errors = formatErrorCount(t, errorCount);
+      const errors = tPlural("status_error", errorCount);
       if (warningCount > 0) {
-        return `${errors} ${formatWarningCount(t, warningCount)}`;
+        return `${errors} ${tPlural("status_warning", warningCount)}`;
       }
       return errors;
     }
@@ -84,21 +51,25 @@ export function StatusBar({
   message,
   errorCount,
   warningCount,
-  byteIdentical,
-  byteDiffCount,
   megaCrowVersion,
   megaloVersionId,
-  line,
-  column,
   variantBytes,
   variantCapacity,
   variantLimitUsage,
   diagnosticsOpen,
   onToggleDiagnostics,
 }: Props) {
-  const t = useT();
-  const barColorState = useBarColorState(compileState);
-  const label = statusToggleLabel(t, compileState, errorCount, warningCount);
+  const localeContext = useIdeLocale();
+  const { t } = localeContext;
+  // While compiling, keep the colour of the last result instead of flashing.
+  const barColorState = useCompile((state) => state.settledState);
+  const { column, line } = useDocument((state) => state.cursor);
+  const label = statusToggleLabel(
+    localeContext,
+    compileState,
+    errorCount,
+    warningCount
+  );
 
   return (
     <footer className={`status-bar status-bar--${barColorState}`}>
@@ -119,18 +90,6 @@ export function StatusBar({
             {label}
           </span>
         </button>
-        {byteIdentical === true && (
-          <span className="status-chip status-chip--ok">
-            {t("status_byte_identical")}
-          </span>
-        )}
-        {byteIdentical === false &&
-          byteDiffCount !== null &&
-          byteDiffCount > 0 && (
-            <span className="status-chip status-chip--warn">
-              {t("status_byte_diff", { count: byteDiffCount })}
-            </span>
-          )}
       </div>
       {/* Only an error message opens the problems pane. */}
       {compileState === "error" && message ? (
@@ -157,8 +116,8 @@ export function StatusBar({
           usedBytes={variantBytes}
         />
         <span>{t("status_ln_col", { line, column })}</span>
-        <span title={`MegaloEvolved ${megaCrowVersion}`}>
-          MegaloEvolved {megaCrowVersion}
+        <span title={`${APP_NAME} ${megaCrowVersion}`}>
+          {APP_NAME} {megaCrowVersion}
         </span>
         <span title={`Megalo ${megaloVersionId}`}>
           Megalo {megaloVersionId}

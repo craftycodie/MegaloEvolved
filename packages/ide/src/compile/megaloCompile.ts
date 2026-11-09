@@ -7,6 +7,7 @@ import {
   resolveGameBuildNumber,
   SourceLocationType,
 } from "@megacrow/megalo";
+import { DEFAULT_MEGALO_VERSION } from "../app/constants";
 import { translate } from "../localization";
 import {
   getCompileCreatorGamertag,
@@ -50,26 +51,9 @@ export function formatMegaloCompileTiming(
   });
 }
 
-export function enrichCompileErrorLocation(
-  error: unknown,
-  _source?: string
-): { line: number; column: number; message: string } {
-  const message = error instanceof Error ? error.message : String(error);
-  const match = /:(\d+):(\d+):/.exec(message);
-  return {
-    line: match ? Number(match[1]) : 1,
-    column: match ? Number(match[2]) : 1,
-    message,
-  };
-}
-
-export function megaloErrorLocation(error: unknown) {
-  return enrichCompileErrorLocation(error);
-}
-
 function compileVersion() {
   const versionId = getCompileMegaloVersion();
-  return MEGALO_VERSIONS[versionId] ?? MEGALO_VERSIONS["107-mcc"];
+  return MEGALO_VERSIONS[versionId] ?? MEGALO_VERSIONS[DEFAULT_MEGALO_VERSION];
 }
 
 async function compileOrThrow(

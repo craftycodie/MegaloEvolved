@@ -133,7 +133,60 @@ export const sourceNavEntry = (
   text,
 });
 
-/** Keep history in sync when the active file is renamed on disk. */
+const sameDisplayName = (a: string, b: string): boolean =>
+  a.localeCompare(b, undefined, { sensitivity: "accent" }) === 0;
+
+/** Text after `folder/` when `displayName` lies inside `folder`, else null. */
+const pathInsideFolder = (
+  displayName: string,
+  folder: string
+): string | null => {
+  const prefix = `${folder}/`;
+  if (
+    displayName.length <= prefix.length ||
+    !sameDisplayName(displayName.slice(0, prefix.length), prefix)
+  ) {
+    return null;
+  }
+  return displayName.slice(prefix.length);
+};
+
+/**
+ * Where an open file ends up after `oldName` (a file or a folder, as a
+ * workspace-relative display path) was renamed or moved to `newName`.
+ * `newAbsolutePath` is the absolute path of the renamed entry itself.
+ * Returns null when the file is not affected.
+ */
+export const remapPathAfterRename = (
+  entry: { absoluteFilePath: string | null; displayName: string },
+  oldName: string,
+  newName: string,
+  newAbsolutePath: string
+): { absoluteFilePath: string; displayName: string } | null => {
+  if (sameDisplayName(entry.displayName, oldName)) {
+    return { absoluteFilePath: newAbsolutePath, displayName: newName };
+  }
+  const rest = pathInsideFolder(entry.displayName, oldName);
+  if (rest === null) {
+    return null;
+  }
+  const separator = newAbsolutePath.includes("\\") ? "\\" : "/";
+  const folder = newAbsolutePath.replace(/[\\/]+$/, "");
+  return {
+    absoluteFilePath: `${folder}${separator}${rest.split("/").join(separator)}`,
+    displayName: `${newName}/${rest}`,
+  };
+};
+
+/** True when deleting `deletedName` (a file or folder) removes `displayName`. */
+export const isRemovedByDelete = (
+  displayName: string,
+  deletedName: string
+): boolean =>
+  sameDisplayName(displayName, deletedName) ||
+  pathInsideFolder(displayName, deletedName) !== null;
+
+/** Keep history in sync when a file, or a folder holding files, is renamed. */
 export const renameFileNavEntries = (
   state: FileNavState,
   oldName: string,
@@ -142,22 +195,20 @@ export const renameFileNavEntries = (
 ): FileNavState => {
   let changed = false;
   const entries = state.entries.map((entry) => {
-    const nameMatch =
-      entry.displayName.localeCompare(oldName, undefined, {
-        sensitivity: "accent",
-      }) === 0;
-    const pathMatch =
-      absoluteFilePath !== undefined &&
-      samePath(entry.absoluteFilePath, absoluteFilePath);
-    if (!(nameMatch || pathMatch)) {
+    const remapped =
+      absoluteFilePath === undefined
+        ? sameDisplayName(entry.displayName, oldName)
+          ? { absoluteFilePath: entry.absoluteFilePath, displayName: newName }
+          : null
+        : (remapPathAfterRename(entry, oldName, newName, absoluteFilePath) ??
+          (samePath(entry.absoluteFilePath, absoluteFilePath)
+            ? { absoluteFilePath, displayName: newName }
+            : null));
+    if (!remapped) {
       return entry;
     }
     changed = true;
-    return {
-      ...entry,
-      displayName: newName,
-      absoluteFilePath: absoluteFilePath ?? entry.absoluteFilePath,
-    };
+    return { ...entry, ...remapped };
   });
   return changed ? { ...state, entries } : state;
 };

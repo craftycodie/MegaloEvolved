@@ -1,7 +1,8 @@
-import { useMemo } from "react";
 import type { SourceAnalysis } from "../compile";
 import { buildVariantIdentity } from "../gametype";
-import { useIdeLocale, useT } from "../localization";
+import { useT } from "../localization";
+
+const NO_OBJECT_LIST_NAMES: readonly string[] = [];
 
 interface Props {
   absoluteFilePath?: string | null;
@@ -13,22 +14,18 @@ interface Props {
 export function SidebarVariantHeader({
   fileName,
   absoluteFilePath,
-  objectListNames = [],
+  objectListNames = NO_OBJECT_LIST_NAMES,
   compiledMetadata,
 }: Props) {
   const t = useT();
-  const { locale } = useIdeLocale();
-  const variantIdentity = useMemo(
-    () =>
-      buildVariantIdentity({
-        fileName,
-        absoluteFilePath,
-        objectListNames,
-        compiledMetadata,
-      }),
-    // `locale` re-runs the memo so localized string-table names re-resolve.
-    [fileName, absoluteFilePath, objectListNames, compiledMetadata, locale]
-  );
+  // Cheap to build, and it reads localized names, so compute every render
+  // (a memo would also need the locale as a hidden dependency).
+  const variantIdentity = buildVariantIdentity({
+    fileName,
+    absoluteFilePath,
+    objectListNames,
+    compiledMetadata,
+  });
 
   if (!variantIdentity) {
     return (

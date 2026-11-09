@@ -112,32 +112,6 @@ export async function readOpfsWorkspaceBytes(
   }
 }
 
-export async function writeOpfsWorkspaceBytes(
-  logicalPath: string,
-  bytes: Uint8Array
-): Promise<void> {
-  if (!isOpfsSupported()) {
-    throw new Error("OPFS is not supported in this browser");
-  }
-  const normalized = logicalPath.replace(/\\/g, "/").replace(/^\/+/, "");
-  const segments = normalized
-    .split("/")
-    .filter((segment) => segment.length > 0);
-  if (segments.length === 0) {
-    throw new Error("Invalid OPFS workspace path");
-  }
-  const fileName = segments.at(-1)!;
-  const dirPath = segments.slice(0, -1).join("/");
-  const dir = await getDirectoryHandle(dirPath, true);
-  if (!dir) {
-    throw new Error(`Could not create OPFS directory: ${dirPath}`);
-  }
-  const handle = await dir.getFileHandle(fileName, { create: true });
-  const writable = await handle.createWritable();
-  await writable.write(bytes as unknown as BlobPart);
-  await writable.close();
-}
-
 function isSourceFileName(name: string): boolean {
   const lower = name.toLowerCase();
   return lower.endsWith(SOURCE_EXT) || lower.endsWith(LEGACY_SOURCE_EXT);
@@ -191,13 +165,6 @@ export async function listOpfsGametypes(): Promise<OpfsGametypeEntry[]> {
   }
 
   return entries.sort((a, b) => b.updatedAt - a.updatedAt);
-}
-
-export async function readOpfsGametype(name: string): Promise<Uint8Array> {
-  const dir = await getGametypesDirectory();
-  const handle = await dir.getFileHandle(name);
-  const file = await handle.getFile();
-  return new Uint8Array(await file.arrayBuffer());
 }
 
 function companionSourceName(
@@ -388,44 +355,6 @@ export function opfsGametypeLogicalPath(name: string): string {
   return `${GAMETYPES_DIR}/${name}`;
 }
 
-/** File blobs for system clipboard write (source file, plus legacy `.bin` when present). */
-export async function getOpfsGametypeClipboardFiles(
-  name: string
-): Promise<File[]> {
-  const dir = await getGametypesDirectory();
-  const files: File[] = [];
-  const primaryHandle = await dir.getFileHandle(name);
-  files.push(await primaryHandle.getFile());
-
-  if (isSourceFileName(name)) {
-    const binSibling = siblingBinName(name);
-    if (binSibling) {
-      try {
-        const handle = await dir.getFileHandle(binSibling);
-        files.push(await handle.getFile());
-      } catch {
-        // no legacy bin
-      }
-    }
-    return files;
-  }
-
-  for (const ext of [SOURCE_EXT, LEGACY_SOURCE_EXT] as const) {
-    const companion = companionSourceName(name, ext);
-    if (!companion) {
-      continue;
-    }
-    try {
-      const handle = await dir.getFileHandle(companion);
-      files.push(await handle.getFile());
-      break;
-    } catch {
-      // try next extension
-    }
-  }
-  return files;
-}
-
 async function allocateOpfsCopyName(originalName: string): Promise<string> {
   const dir = await getGametypesDirectory();
   const safeOriginal = isSourceFileName(originalName)
@@ -467,37 +396,4 @@ export async function duplicateOpfsGametype(fromName: string): Promise<string> {
   }
 
   return toName;
-}
-
-export async function saveGametypeToOpfs(
-  name: string,
-  bytes: Uint8Array,
-  source: string
-): Promise<string> {
-  const safeName = safeBinFileName(name);
-  const dir = await getGametypesDirectory();
-
-  const binHandle = await dir.getFileHandle(safeName, { create: true });
-  const binWritable = await binHandle.createWritable();
-  await binWritable.write(bytes as unknown as BlobPart);
-  await binWritable.close();
-
-  const sourceName = companionSourceName(safeName, SOURCE_EXT);
-  if (sourceName) {
-    // Drop legacy `.meg` sidecar if present.
-    const legacy = companionSourceName(safeName, LEGACY_SOURCE_EXT);
-    if (legacy) {
-      try {
-        await dir.removeEntry(legacy);
-      } catch {
-        // ignore
-      }
-    }
-    const sourceHandle = await dir.getFileHandle(sourceName, { create: true });
-    const sourceWritable = await sourceHandle.createWritable();
-    await sourceWritable.write(source);
-    await sourceWritable.close();
-  }
-
-  return safeName;
 }

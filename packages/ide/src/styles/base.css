@@ -1,0 +1,107 @@
+:root {
+  --font-ui:
+    "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono:
+    "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  --bg-app: #1e1e1e;
+  --bg-panel: #252526;
+  --bg-chrome: #2d2d2d;
+  --bg-raised: #333333;
+  --bg-hover: #2a2d2e;
+  --bg-active: #37373d;
+  --border: #3c3c3c;
+  --border-subtle: #2b2b2b;
+  --text-primary: #cccccc;
+  --text-secondary: #969696;
+  --text-muted: #6d6d6d;
+  --accent: #3794ff;
+  --accent-rgb: 55, 148, 255;
+  --accent-soft: #9cdcfe;
+  --bg-dialog: #2d2d30;
+  --color-error: #f48771;
+  --color-error-soft: #f1948a;
+  --color-warning: #cca700;
+  --color-success: #89d185;
+
+  /* Stacking order. Dialogs use the browser's top layer instead. */
+  --z-toolbar: 20;
+  --z-popover: 4000;
+  --z-motd: 5000;
+  --z-watermark: 10000;
+  font-family: var(--font-ui);
+  color: var(--text-primary);
+  color-scheme: dark;
+  background: var(--bg-app);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+}
+
+#root {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.app {
+  --titlebar-height: 36px;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  max-width: 100vw;
+  height: 100%;
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.window-control {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  padding: 0;
+  color: var(--text-secondary);
+  cursor: default;
+  background: transparent;
+  border: 0;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.window-control svg {
+  width: 11px;
+  height: 11px;
+}
+
+.window-control:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.window-control-close:hover {
+  color: #ffffff;
+  background: #e81123;
+}
+
+.status {
+  margin-left: auto;
+  font-size: 14px;
+}
+
+.status.ok {
+  color: #7dcea0;
+}
+
+.status.fail {
+  color: var(--color-error-soft);
+}

@@ -38,11 +38,6 @@ import type {
   FilesContextTarget,
 } from "./useFilesPanelContextMenu";
 
-interface PendingLocalDelete {
-  paths: string[][];
-  targets: FilesContextTarget[];
-}
-
 interface PendingReplace {
   displayName: string;
   fromPath: string[];
@@ -92,9 +87,6 @@ export function useDiskFileOps({
   setRenamingPathKey,
   tauriAvailable,
 }: Options) {
-  const [pendingDelete, setPendingDelete] = useState<PendingLocalDelete | null>(
-    null
-  );
   const [pendingReplace, setPendingReplace] = useState<PendingReplace | null>(
     null
   );
@@ -435,26 +427,6 @@ export function useDiskFileOps({
     setLocalError,
   ]);
 
-  const requestDelete = useCallback(
-    (paths: string[][], targets: FilesContextTarget[]) => {
-      setPendingDelete({ paths, targets });
-    },
-    []
-  );
-
-  const confirmDelete = useCallback(() => {
-    if (!pendingDelete) {
-      return;
-    }
-    const { paths } = pendingDelete;
-    setPendingDelete(null);
-    void deleteLocalFiles(paths);
-  }, [deleteLocalFiles, pendingDelete]);
-
-  const cancelDelete = useCallback(() => {
-    setPendingDelete(null);
-  }, []);
-
   const confirmReplace = useCallback(() => {
     if (!pendingReplace) {
       return;
@@ -508,18 +480,11 @@ export function useDiskFileOps({
     [localRoot]
   );
 
-  const resetOnRootChange = useCallback(() => {
-    setPendingDelete(null);
-    setPendingReplace(null);
-  }, []);
-
   return {
     canRegenerateObjectLists,
-    cancelDelete,
     cancelRegenerateObjectLists,
     cancelReplace,
     commitRename,
-    confirmDelete,
     confirmRegenerateObjectLists,
     confirmReplace,
     createLocalFile,
@@ -529,12 +494,9 @@ export function useDiskFileOps({
     onTreeContextMenu,
     openLocalFile,
     pasteLocalFile,
-    pendingDelete,
     pendingRegenerateObjectLists,
     pendingReplace,
-    requestDelete,
     requestRegenerateObjectLists,
-    resetOnRootChange,
     resolveContextAbsolutePath,
   };
 }

@@ -65,6 +65,13 @@ export const lowerPlayerTraits = (
 ) => {
   dxAssertionScope(ctx.diagnostics, () => {
     assertNotErrorNode(entry.name);
+    const limit = ctx.frontend.versionConfiguration.limits.playerTraitSets;
+    if (ctx.ir.gameVariant.playerTraits.length >= limit) {
+      throw new LowerError(
+        diagnosticMessages.tooManyPlayerTraits(limit),
+        entry.name.location
+      );
+    }
     const traits = lowerPlayerTraitOptions(
       entry.options,
       asParameterLoweringContext(ctx),

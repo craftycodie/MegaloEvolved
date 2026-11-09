@@ -1,11 +1,12 @@
 import type { MouseEvent as ReactMouseEvent } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type LocalDiskNode, pathKey } from "../../files";
 import {
   ancestorPathKeys,
   findFilePathByDisplayName,
   flattenVisibleNodes,
   parsePathKey,
+  pruneSelection,
 } from "./treeUtils";
 
 interface Options {
@@ -26,8 +27,14 @@ export function useLocalDiskTreeSelection({
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(
     () => new Set()
   );
-  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(
+  const [storedSelectedKeys, setSelectedKeys] = useState<ReadonlySet<string>>(
     () => new Set()
+  );
+  // Drop keys of entries that were deleted, renamed or moved, so multi-select
+  // actions never target paths that no longer exist.
+  const selectedKeys = useMemo(
+    () => pruneSelection(storedSelectedKeys, nodes),
+    [nodes, storedSelectedKeys]
   );
   const [selectionAnchorKey, setSelectionAnchorKey] = useState<string | null>(
     null

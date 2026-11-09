@@ -1,0 +1,157 @@
+/* Allow selection only where typing / copying is expected. */
+.app input,
+.app textarea,
+.app select,
+.app [contenteditable="true"],
+.app .monaco-editor,
+.app .about-version,
+.app .about-detail dd {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.editor-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-app);
+}
+
+.editor-pane-main {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pre-release-watermark {
+  position: fixed;
+  top: calc(var(--titlebar-height, 36px) + 10px);
+  right: 18px;
+  z-index: var(--z-watermark);
+  max-width: min(420px, calc(100% - 24px));
+  font-family:
+    ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, monospace;
+  line-height: 1.35;
+  color: #ffffff;
+  text-align: right;
+  pointer-events: none;
+  user-select: none;
+  opacity: 1;
+}
+
+.pre-release-watermark-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.pre-release-watermark-meta {
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.editor-pane-main > * {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Suggest/hover float above the problems pane when near the bottom. */
+.monaco-editor .overflowingContentWidgets {
+  z-index: 40;
+}
+
+.monaco-editor .suggest-widget {
+  z-index: 40;
+}
+
+/* Don't flash Loading… / "No suggestions." — only show when there are items. */
+.monaco-editor .suggest-widget.loading,
+.monaco-editor .suggest-widget:not(:has(.monaco-list-row)) {
+  display: none !important;
+}
+
+.editor-empty {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  min-height: 0;
+  padding: 32px;
+  color: var(--text-muted);
+  background: var(--bg-app);
+}
+
+.editor-empty-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  max-width: 320px;
+  text-align: center;
+}
+
+.editor-empty-icon {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 4px;
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+.editor-empty-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.editor-empty-hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.editor-pane > * {
+  min-width: 0;
+  min-height: 0;
+}
+
+.problems-pane-resizer {
+  position: relative;
+  z-index: 5;
+  flex: 0 0 5px;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  touch-action: none;
+  cursor: row-resize;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.problems-pane-resizer::after {
+  position: absolute;
+  top: -2px;
+  right: 0;
+  left: 0;
+  height: 9px;
+  content: "";
+}
+
+.problems-pane-resizer:hover,
+.problems-pane-resizer:active {
+  background: rgba(var(--accent-rgb), 0.28);
+  border-top-color: rgba(var(--accent-rgb), 0.45);
+}

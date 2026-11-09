@@ -1,12 +1,11 @@
 import type { MouseEvent } from "react";
+import { BUILDS_OPEN_STORAGE_KEY, BUILDS_PANE } from "../../app/paneLayout";
 import { useT } from "../../localization";
+import { PaneResizer } from "../../ui/PaneResizer";
+import { booleanCodec, usePersistentState } from "../../ui/usePersistentState";
+import { useResizablePane } from "../../ui/useResizablePane";
 import { BuiltGametypeGlyph } from "./FilesGlyphs";
 import { FolderErrorCard } from "./FolderErrorCard";
-import {
-  BUILDS_PANE_MAX_HEIGHT,
-  BUILDS_PANE_MIN_HEIGHT,
-  useBuildsPaneHeight,
-} from "./useBuildsPaneHeight";
 
 interface BuildOutput {
   name: string;
@@ -34,12 +33,14 @@ export function BuildsPane({
   outputPath,
 }: Props) {
   const t = useT();
-  const {
-    height: buildsHeight,
-    open: buildsOpen,
-    onResizeStart: onBuildsResizeStart,
-    toggleOpen: toggleBuildsOpen,
-  } = useBuildsPaneHeight();
+  const buildsPane = useResizablePane(BUILDS_PANE);
+  const buildsHeight = buildsPane.size;
+  const [buildsOpen, setBuildsOpen] = usePersistentState(
+    BUILDS_OPEN_STORAGE_KEY,
+    booleanCodec,
+    true
+  );
+  const toggleBuildsOpen = () => setBuildsOpen((open) => !open);
 
   return (
     <div className={`files-builds${buildsOpen ? " files-builds--open" : ""}`}>
@@ -72,15 +73,10 @@ export function BuildsPane({
       </button>
       {buildsOpen ? (
         <>
-          <div
-            aria-label={t("files_resize_built_gametypes_pane")}
-            aria-orientation="horizontal"
-            aria-valuemax={BUILDS_PANE_MAX_HEIGHT}
-            aria-valuemin={BUILDS_PANE_MIN_HEIGHT}
-            aria-valuenow={buildsHeight}
+          <PaneResizer
             className="files-builds-resizer"
-            onPointerDown={onBuildsResizeStart}
-            role="separator"
+            label={t("files_resize_built_gametypes_pane")}
+            pane={buildsPane}
           />
           <div className="files-builds-body" style={{ height: buildsHeight }}>
             {outputError ? (

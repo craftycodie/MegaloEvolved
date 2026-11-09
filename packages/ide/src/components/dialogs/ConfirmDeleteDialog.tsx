@@ -1,7 +1,5 @@
-import { useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
 import { useT } from "../../localization";
-import { dismissIfBackdropMouseDown } from "./dismissIfBackdrop";
+import { ConfirmDialog } from "../../ui/ConfirmDialog";
 
 interface Props {
   /** When > 1, show a multi-item delete prompt. */
@@ -11,92 +9,38 @@ interface Props {
   onCancel: () => void;
   onConfirm: () => void;
   open: boolean;
-  /** When true, wording mentions folder contents. */
+  /** Folders mention their contents in the prompt. */
   targetKind?: "file" | "directory" | "mixed";
 }
 
 export function ConfirmDeleteDialog({
-  open,
-  name,
   count = 1,
-  targetKind = "file",
+  name,
   onCancel,
   onConfirm,
+  open,
+  targetKind = "file",
 }: Props) {
   const t = useT();
-  const confirmRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    const frame = requestAnimationFrame(() => confirmRef.current?.focus());
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onCancel();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      cancelAnimationFrame(frame);
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open, onCancel]);
-
-  if (!open) {
-    return null;
-  }
-
   const multi = count > 1;
-  const title = multi
-    ? t("delete_items_title")
-    : targetKind === "directory"
-      ? t("delete_folder_title")
-      : t("delete_file_title");
-  const body = multi
-    ? t("delete_items_body", { count })
-    : targetKind === "directory"
-      ? t("delete_folder_body", { name })
-      : t("delete_file_body", { name });
-
-  return createPortal(
-    <div
-      className="confirm-delete-backdrop"
-      onMouseDown={(event) => dismissIfBackdropMouseDown(event, onCancel)}
-      role="presentation"
-    >
-      <div
-        aria-describedby="confirm-delete-description"
-        aria-labelledby="confirm-delete-title"
-        aria-modal="true"
-        className="confirm-delete-dialog"
-        role="dialog"
-      >
-        <h2 className="confirm-delete-title" id="confirm-delete-title">
-          {title}
-        </h2>
-        <p className="confirm-delete-body" id="confirm-delete-description">
-          {body}
-        </p>
-        <div className="confirm-delete-footer">
-          <button
-            className="confirm-delete-secondary"
-            onClick={onCancel}
-            type="button"
-          >
-            {t("common_cancel")}
-          </button>
-          <button
-            className="confirm-delete-danger"
-            onClick={onConfirm}
-            ref={confirmRef}
-            type="button"
-          >
-            {t("common_delete")}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
+  const folder = targetKind === "directory";
+  return (
+    <ConfirmDialog
+      body={
+        multi
+          ? t("delete_items_body", { count })
+          : t(folder ? "delete_folder_body" : "delete_file_body", { name })
+      }
+      confirmLabel={t("common_delete")}
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+      open={open}
+      title={
+        multi
+          ? t("delete_items_title")
+          : t(folder ? "delete_folder_title" : "delete_file_title")
+      }
+      tone="danger"
+    />
   );
 }

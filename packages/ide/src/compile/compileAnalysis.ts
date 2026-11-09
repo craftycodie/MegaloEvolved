@@ -9,8 +9,6 @@ import type { MegaloCompileTiming } from "./megaloCompile";
 export type CompileState = "idle" | "parsing" | "ok" | "warn" | "error";
 
 export interface SourceAnalysis {
-  byteDiffCount: number | null;
-  byteIdentical: boolean | null;
   compiledByteLength: number | null;
   compiledMetadata?: CompiledMegaloMetadata | null;
   compileState: CompileState;
@@ -26,13 +24,25 @@ export const idleAnalysis = (): SourceAnalysis => ({
   compileState: "idle",
   errorCount: 0,
   message: translate("status_no_gametype_loaded"),
-  byteIdentical: null,
-  byteDiffCount: null,
   compiledByteLength: null,
   mgloBytes: null,
   compileTiming: null,
   diagnostics: [],
 });
+
+/**
+ * Analysis for a compile request that threw (LSP worker crash, lost
+ * connection, IPC failure). Callers show it instead of staying on "parsing".
+ */
+export const failedAnalysis = (error: unknown): SourceAnalysis => {
+  console.error("Megalo compile request failed:", error);
+  return {
+    ...idleAnalysis(),
+    compileState: "error",
+    errorCount: 1,
+    message: translate("status_compilation_failed"),
+  };
+};
 
 /**
  * While editing, failed / in-progress compiles should not wipe sidebar

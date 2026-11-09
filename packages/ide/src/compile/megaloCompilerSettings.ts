@@ -5,6 +5,9 @@ import {
   type MegacrowExtensions,
   type MegaloVersionId,
 } from "@megacrow/megalo";
+import { APP_NAME, DEFAULT_MEGALO_VERSION } from "../app/constants";
+// Types only: the app settings module pulls in the Monaco themes, which the
+// Node CLI (which also compiles through this module) cannot load.
 import type {
   AppSettings,
   CompilerProfile,
@@ -34,7 +37,7 @@ export interface MegaCrowCompilerSettings {
   strictStringLiterals: boolean;
 }
 
-const DEFAULT_COMPILE_VERSION_ID: MegaloVersionId = "107-mcc";
+const DEFAULT_COMPILE_VERSION_ID: MegaloVersionId = DEFAULT_MEGALO_VERSION;
 
 export function megacrowExtensionsForProfile(
   profile: CompilerProfile
@@ -48,25 +51,20 @@ export function compilerSettingsFromApp(
   settings: AppSettings
 ): MegaCrowCompilerSettings {
   return {
-    creatorGamertag:
-      normalizeCreatorGamertag(settings.gamertag) || "MegaloEvolved",
+    creatorGamertag: normalizeCreatorGamertag(settings.gamertag) || APP_NAME,
     locale: settings.locale,
     megacrowExtensions: megacrowExtensionsForProfile(settings.compilerProfile),
     strictStringLiterals: settings.compilerStrictness,
   };
 }
 
-const DEFAULT_COMPILER_SETTINGS: MegaCrowCompilerSettings =
-  compilerSettingsFromApp({
-    discordRichPresence: true,
-    gamertag: "MegaloEvolved",
-    compilerStrictness: false,
-    compilerProfile: "megacrow",
-    editorTheme: "megacrow-dark",
-    editorWordWrap: true,
-    locale: "en",
-    skippedUpdateVersion: null,
-  });
+/** Same as `compilerSettingsFromApp(DEFAULT_APP_SETTINGS)`. */
+const DEFAULT_COMPILER_SETTINGS: MegaCrowCompilerSettings = {
+  creatorGamertag: APP_NAME,
+  locale: "en",
+  megacrowExtensions: megacrowExtensionsForProfile("megacrow"),
+  strictStringLiterals: false,
+};
 
 let appliedCompilerSettings: MegaCrowCompilerSettings = {
   ...DEFAULT_COMPILER_SETTINGS,
@@ -118,24 +116,4 @@ export function getCompileCreatorGamertag(): string {
 
 export function getAppliedCompilerSettings(): MegaCrowCompilerSettings {
   return appliedCompilerSettings;
-}
-
-export function mergeMegaloCompileOptions(
-  options: MegaloCompileOptions | undefined,
-  compilerSettings: MegaCrowCompilerSettings = appliedCompilerSettings
-): MegaloCompileOptions | undefined {
-  if (!(compilerSettings || options)) {
-    return;
-  }
-  return {
-    ...options,
-    creatorGamertag:
-      normalizeCreatorGamertag(
-        compilerSettings?.creatorGamertag ?? options?.creatorGamertag ?? ""
-      ) || "MegaloEvolved",
-    strictStringLiterals:
-      compilerSettings?.strictStringLiterals ??
-      options?.strictStringLiterals ??
-      false,
-  };
 }

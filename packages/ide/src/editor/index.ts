@@ -2,7 +2,6 @@ export * from "./editorFont";
 export * from "./fileNavigation";
 export * from "./fileNavShortcuts";
 export * from "./megaloBlockFolding";
-export * from "./monacoBootstrap";
 export * from "./openPathReference";
 export * from "./pathReferences";
 export * from "./regionComments";

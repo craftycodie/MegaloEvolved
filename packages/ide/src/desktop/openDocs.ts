@@ -1,5 +1,6 @@
 import { emit, listen } from "@tauri-apps/api/event";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { APP_NAME } from "../app/constants";
 import { getIdeLocale } from "../localization";
 import { isTauriRuntime } from "./tauriRuntime";
 
@@ -94,7 +95,7 @@ export async function openDocs(path?: string | null): Promise<void> {
 
   const webview = new WebviewWindow(DOCS_LABEL, {
     url: docsShellUrl(path),
-    title: "MegaloEvolved Docs",
+    title: `${APP_NAME} Docs`,
     width: 1100,
     height: 800,
     minWidth: 640,

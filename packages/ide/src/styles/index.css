@@ -1,0 +1,11 @@
+/* Stylesheets by area, in cascade order (base first). */
+@import "./base.css";
+@import "./editor.css";
+@import "./toolbar.css";
+@import "./workspace.css";
+@import "./settings.css";
+@import "./dialogs.css";
+@import "./sidebar.css";
+@import "./files.css";
+@import "./diagnostics.css";
+@import "./status-bar.css";

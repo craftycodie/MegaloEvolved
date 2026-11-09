@@ -39,3 +39,25 @@ export function variantCapacityLevel(
   }
   return "ok";
 }
+
+/** Limit rows whose usage is over the maximum. */
+export function exceededLimits<T extends { max: number; used: number }>(
+  items: readonly T[]
+): T[] {
+  return items.filter((item) => item.max > 0 && item.used > item.max);
+}
+
+/**
+ * Status-bar meter level: the encoded-size thresholds, raised to danger
+ * when any limit (loadouts, palettes, widgets…) is over its maximum, so the
+ * bar never looks fine while the limits popover shows a problem.
+ */
+export function variantMeterLevel(
+  usedBytes: number,
+  capacityBytes: number,
+  items: readonly { max: number; used: number }[]
+): VariantCapacityLevel {
+  return exceededLimits(items).length > 0
+    ? "danger"
+    : variantCapacityLevel(usedBytes, capacityBytes);
+}

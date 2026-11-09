@@ -53,43 +53,14 @@ export function parseFileClipboard(text: string): FileClipboardPayload | null {
 export interface WriteFileClipboardOptions {
   /** Absolute disk paths for OS paste (Explorer / Finder). */
   absolutePaths?: string[];
-  /** File blobs for web clipboard paste into other apps. */
-  files?: File[];
-}
-
-async function writeWebClipboardFiles(
-  files: File[],
-  text: string
-): Promise<void> {
-  if (files.length === 0 || typeof ClipboardItem === "undefined") {
-    await writeClipboardText(text);
-    return;
-  }
-
-  const textBlob = new Blob([text], { type: "text/plain" });
-  const [first, ...rest] = files;
-  const firstType = first!.type || "application/octet-stream";
-  const items: ClipboardItem[] = [
-    new ClipboardItem({
-      "text/plain": Promise.resolve(textBlob),
-      [firstType]: Promise.resolve(first!),
-    }),
-  ];
-  for (const file of rest) {
-    const type = file.type || "application/octet-stream";
-    items.push(
-      new ClipboardItem({
-        [type]: Promise.resolve(file),
-      })
-    );
-  }
-  await navigator.clipboard.write(items);
 }
 
 /**
  * Place a MegaCrow file copy on the system clipboard.
  * On Tauri/Windows, also sets CF_HDROP so Explorer can Paste the real file(s).
- * In the browser, also writes File blob(s) when provided.
+ * In the browser only the text marker is written: browsers accept a single
+ * clipboard item and few types, and a `.txt` file blob (`text/plain`) used to
+ * overwrite the marker, so Paste never appeared.
  */
 export async function writeFileClipboard(
   payload: FileClipboardPayload,
@@ -101,15 +72,6 @@ export async function writeFileClipboard(
   if (isTauriRuntime() && paths.length > 0) {
     await ipcClipboardWriteFiles({ paths, text });
     return;
-  }
-
-  if (options?.files?.length) {
-    try {
-      await writeWebClipboardFiles(options.files, text);
-      return;
-    } catch {
-      // Fall back to text-only MegaCrow payload.
-    }
   }
 
   await writeClipboardText(text);

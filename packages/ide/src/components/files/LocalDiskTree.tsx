@@ -1,8 +1,10 @@
 import {
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   useCallback,
   useRef,
+  useState,
 } from "react";
 import { formatLocalDiskPath, type LocalDiskNode, pathKey } from "../../files";
 import {
@@ -12,15 +14,9 @@ import {
 } from "../../gametype";
 import { useT } from "../../localization";
 import { FilesRenameInput } from "./FilesRenameInput";
-import { flattenVisibleNodes } from "./treeUtils";
+import { flattenVisibleNodes, parsePathKey, treeKeyAction } from "./treeUtils";
 import { useLocalDiskTreeDragDrop } from "./useLocalDiskTreeDragDrop";
 import { useLocalDiskTreeSelection } from "./useLocalDiskTreeSelection";
-
-export {
-  isMegacrowTreeDragActive,
-  MEGACROW_TREE_PATH_MIME,
-  pruneNestedPaths,
-} from "./treeUtils";
 
 interface Props {
   activeFileName: string | null;
@@ -39,10 +35,13 @@ interface Props {
       virtual?: boolean;
     }>
   ) => void;
-  onMoveEntries: (fromPaths: string[][], toParentPath: string[]) => void;
+  /** Omit to turn off drag-and-drop moves for this tree. */
+  onMoveEntries?: (fromPaths: string[][], toParentPath: string[]) => void;
   onOpenFile: (path: string[]) => void;
   onRegenerateObjectLists?: () => void;
   renamingPathKey: string | null;
+  /** Accessible name of the tree. */
+  treeLabel: string;
 }
 
 function FileGlyph() {
@@ -193,6 +192,7 @@ function TreeNode({
   onRegenerateObjectLists,
   renamingPathKey,
   selectedKeys,
+  tabStopKey,
   onPointerDownRow,
   onRowActivate,
   onToggleDirectory,
@@ -211,8 +211,10 @@ function TreeNode({
   objectListNames: readonly string[];
   onRegenerateObjectLists?: () => void;
   renamingPathKey: string | null;
-  selectedKeys: Set<string>;
-  onPointerDownRow: (
+  selectedKeys: ReadonlySet<string>;
+  /** The one row reachable with Tab (roving tab stop). */
+  tabStopKey: string | null;
+  onPointerDownRow?: (
     event: React.PointerEvent<HTMLDivElement>,
     node: LocalDiskNode
   ) => void;
@@ -252,7 +254,7 @@ function TreeNode({
     const isVirtual = node.virtual === true;
 
     return (
-      <li className="files-tree-node">
+      <li className="files-tree-node" role="none">
         {isRenaming ? (
           <div
             className={`files-row-btn files-row-btn--renaming${isActive ? " files-row-btn--active" : ""}${isSelected ? " files-row-btn--selected" : ""}${recognizedObjectList ? " files-row-btn--object-list-file" : ""}${isVirtual ? " files-row-btn--virtual" : ""}`}
@@ -272,6 +274,7 @@ function TreeNode({
           </div>
         ) : (
           <div
+            aria-level={depth + 1}
             aria-selected={isSelected}
             className={`files-row-btn${isActive ? " files-row-btn--active" : ""}${isSelected ? " files-row-btn--selected" : ""}${recognizedObjectList ? " files-row-btn--object-list-file" : ""}${isVirtual ? " files-row-btn--virtual" : ""}${isDragging ? " files-row-btn--dragging" : ""}${isDropTarget ? " files-row-btn--drop-target" : ""}`}
             data-tree-drop="file"
@@ -299,14 +302,16 @@ function TreeNode({
               }
             }}
             onPointerDown={
-              isVirtual ? undefined : (event) => onPointerDownRow(event, node)
+              isVirtual || !onPointerDownRow
+                ? undefined
+                : (event) => onPointerDownRow(event, node)
             }
             role="treeitem"
             style={indent}
-            tabIndex={0}
+            tabIndex={nodeKey === tabStopKey ? 0 : -1}
             title={
               isVirtual
-                ? `${displayPath} (bundled default — save to create file)`
+                ? t("files_virtual_file_tooltip", { path: displayPath })
                 : displayPath
             }
           >
@@ -326,7 +331,7 @@ function TreeNode({
   const isObjectLists = isObjectListsDirectoryName(node.name);
 
   return (
-    <li className="files-tree-node files-tree-node--branch">
+    <li className="files-tree-node files-tree-node--branch" role="none">
       {isRenaming ? (
         <div
           className={`files-row-btn files-row-btn--folder files-row-btn--renaming${isSelected ? " files-row-btn--selected" : ""}${isObjectLists ? " files-row-btn--object-lists" : ""}`}
@@ -347,6 +352,7 @@ function TreeNode({
       ) : (
         <div
           aria-expanded={isExpanded}
+          aria-level={depth + 1}
           aria-selected={isSelected}
           className={`files-row-btn files-row-btn--folder${isObjectLists ? " files-row-btn--object-lists" : ""}${isSelected ? " files-row-btn--selected" : ""}${isDragging ? " files-row-btn--dragging" : ""}${isDropTarget ? " files-row-btn--drop-target" : ""}`}
           data-tree-drop="directory"
@@ -369,10 +375,14 @@ function TreeNode({
               onBeginRename(node.path);
             }
           }}
-          onPointerDown={(event) => onPointerDownRow(event, node)}
+          onPointerDown={
+            onPointerDownRow
+              ? (event) => onPointerDownRow(event, node)
+              : undefined
+          }
           role="treeitem"
           style={indent}
-          tabIndex={0}
+          tabIndex={nodeKey === tabStopKey ? 0 : -1}
           title={displayPath}
         >
           <ChevronGlyph open={isExpanded} />
@@ -403,10 +413,12 @@ function TreeNode({
         </div>
       )}
       {isExpanded && node.children && node.children.length > 0 ? (
+        // biome-ignore lint/a11y/useSemanticElements: WAI-ARIA tree pattern: a folder's children are a group.
         <ul
           className={`files-tree${isDropTarget ? " files-tree--drop-target" : ""}`}
           data-tree-drop="directory"
           data-tree-path={nodeKey}
+          role="group"
         >
           {node.children.map((child) => (
             <TreeNode
@@ -429,6 +441,7 @@ function TreeNode({
               onToggleDirectory={onToggleDirectory}
               renamingPathKey={renamingPathKey}
               selectedKeys={selectedKeys}
+              tabStopKey={tabStopKey}
             />
           ))}
         </ul>
@@ -436,6 +449,8 @@ function TreeNode({
     </li>
   );
 }
+
+const noMove = () => undefined;
 
 export function LocalDiskTree({
   nodes,
@@ -450,6 +465,7 @@ export function LocalDiskTree({
   onContextMenu,
   onMoveEntries,
   ensureExpandedKeys = [],
+  treeLabel,
 }: Props) {
   const suppressClickRef = useRef(false);
 
@@ -465,7 +481,7 @@ export function LocalDiskTree({
     clearSelection: selection.clearSelection,
     expandedPaths: selection.expandedPaths,
     nodes,
-    onMoveEntries,
+    onMoveEntries: onMoveEntries ?? noMove,
     renamingPathKey,
     selectedKeysRef: selection.selectedKeysRef,
     suppressClickRef,
@@ -511,10 +527,76 @@ export function LocalDiskTree({
     [nodes, onContextMenu, selection]
   );
 
+  // Roving tab stop: the last focused row, else the selected one, else the
+  // first row. Arrow keys move between rows (see treeKeyAction).
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+  const visibleKeys = flattenVisibleNodes(nodes, selection.expandedPaths).map(
+    (node) => pathKey(node.path)
+  );
+  const firstSelectedKey = visibleKeys.find((key) =>
+    selection.selectedKeys.has(key)
+  );
+  const tabStopKey =
+    focusKey !== null && visibleKeys.includes(focusKey)
+      ? focusKey
+      : (firstSelectedKey ?? visibleKeys[0] ?? null);
+
+  const handleTreeKeyDown = (event: ReactKeyboardEvent<HTMLUListElement>) => {
+    if (!(event.target instanceof HTMLElement)) {
+      return;
+    }
+    const row = event.target.closest<HTMLElement>('[role="treeitem"]');
+    const currentKey = row?.dataset.treePath;
+    if (currentKey === undefined) {
+      return;
+    }
+    const action = treeKeyAction(
+      event.key,
+      currentKey,
+      nodes,
+      selection.expandedPaths
+    );
+    if (!action) {
+      return;
+    }
+    event.preventDefault();
+    if (action.toggle !== undefined) {
+      selection.onToggleDirectory(parsePathKey(action.toggle));
+    }
+    if (action.focus !== undefined) {
+      setFocusKey(action.focus);
+      const rows =
+        event.currentTarget.querySelectorAll<HTMLElement>('[role="treeitem"]');
+      for (const candidate of rows) {
+        if (candidate.dataset.treePath === action.focus) {
+          candidate.focus();
+          break;
+        }
+      }
+    }
+  };
+
   return (
     <ul
+      aria-label={treeLabel}
+      aria-multiselectable="true"
       className={`files-tree${dragDrop.dragOverKey === dragDrop.rootDropKey ? " files-tree--drop-target" : ""}${dragDrop.draggingKeys.size > 0 ? " files-tree--dragging" : ""}`}
       data-tree-root=""
+      onFocus={(event) => {
+        const key =
+          event.target instanceof HTMLElement
+            ? event.target.dataset.treePath
+            : undefined;
+        if (
+          key !== undefined &&
+          event.target.getAttribute("role") === "treeitem"
+        ) {
+          setFocusKey(key);
+        }
+      }}
+      onKeyDown={handleTreeKeyDown}
+      // biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: WAI-ARIA tree pattern on the <ul> that holds the rows.
+      role="tree"
     >
       {nodes.map((node) => (
         <TreeNode
@@ -531,12 +613,15 @@ export function LocalDiskTree({
           onCommitRename={onCommitRename}
           onContextMenu={handleContextMenu}
           onOpenFile={selection.onOpenFileGuarded}
-          onPointerDownRow={dragDrop.onPointerDownRow}
+          onPointerDownRow={
+            onMoveEntries ? dragDrop.onPointerDownRow : undefined
+          }
           onRegenerateObjectLists={onRegenerateObjectLists}
           onRowActivate={selection.onRowActivate}
           onToggleDirectory={selection.onToggleDirectory}
           renamingPathKey={renamingPathKey}
           selectedKeys={selection.selectedKeys}
+          tabStopKey={tabStopKey}
         />
       ))}
     </ul>

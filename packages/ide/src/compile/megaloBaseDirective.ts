@@ -51,7 +51,3 @@ export function parseBaseDirective(
     length,
   };
 }
-
-export function baseDirectiveLocation(source: string) {
-  return parseBaseDirective(source);
-}

@@ -88,17 +88,17 @@
     {
       // Desktop IDE UI: custom chrome, async FS adapters, CSS cascade.
       "includes": ["packages/ide/**"],
+      "javascript": {
+        // Injected by packages/ide/vite.config.ts `define`.
+        "globals": ["__BLF_VERSION__"]
+      },
       "linter": {
         "rules": {
           "a11y": {
-            "noNoninteractiveElementInteractions": "off",
-            "noStaticElementInteractions": "off",
-            "noSvgWithoutTitle": "off",
-            "useFocusableInteractive": "off",
-            "useSemanticElements": "off"
+            // Decorative SVG icons are aria-hidden; titles would be noise.
+            "noSvgWithoutTitle": "off"
           },
           "correctness": {
-            "useExhaustiveDependencies": "off",
             "useImageSize": "off"
           },
           "style": {

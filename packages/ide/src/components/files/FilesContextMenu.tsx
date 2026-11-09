@@ -40,7 +40,7 @@ export function FilesContextMenu({
   onReveal,
 }: Props) {
   const t = useT();
-  const panelRef = useContextMenuPosition(menu, onClose);
+  const { onKeyDown, panelRef } = useContextMenuPosition(menu, onClose);
   const revealLabel = fileManagerRevealLabel();
 
   if (!menu) {
@@ -72,6 +72,7 @@ export function FilesContextMenu({
   return createPortal(
     <div
       className="files-context-menu"
+      onKeyDown={onKeyDown}
       ref={panelRef}
       role="menu"
       style={{

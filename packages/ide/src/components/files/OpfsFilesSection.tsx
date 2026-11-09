@@ -105,9 +105,9 @@ export function OpfsFilesSection({
                 onContextMenu(event, name);
               }
             }}
-            onMoveEntries={() => {}}
             onOpenFile={onOpenFile}
             renamingPathKey={renamingPathKey}
+            treeLabel={t("files_browser_saves")}
           />
         ) : null}
       </div>

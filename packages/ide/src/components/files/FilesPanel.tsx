@@ -1,5 +1,6 @@
 import type { MegaloVersionId } from "@megacrow/megalo";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { DEFAULT_MEGALO_VERSION } from "../../app/constants";
 import type { MegaloIncludeRoot } from "../../compile";
 import {
   flattenSourceFileNodes,
@@ -80,12 +81,17 @@ export function FilesPanel({
 
   const localRootPath =
     workspace?.type === "tauri" ? workspace.inputPath : null;
-  const localRoot = localRootPath ? { path: localRootPath } : null;
+  // Stable identity: the watcher and every disk callback depend on it, so a
+  // new object per render would re-subscribe the file watcher each render.
+  const localRoot = useMemo(
+    () => (localRootPath ? { path: localRootPath } : null),
+    [localRootPath]
+  );
   const outputPath =
     workspace?.type === "tauri" && workspace.outputPath?.trim()
       ? workspace.outputPath.trim()
       : null;
-  const megaloVersion = workspace?.megaloVersion ?? "107-mcc";
+  const megaloVersion = workspace?.megaloVersion ?? DEFAULT_MEGALO_VERSION;
   const storedWorkspace = workspaces.find(
     (entry) => entry.id === workspace?.id
   );
@@ -106,7 +112,6 @@ export function FilesPanel({
     tauriAvailable,
   } = useLocalDiskRefresh({
     localDiskRevision,
-    localRoot,
     localRootPath,
     objectListNames,
     onMissingObjectListNamesChange,
@@ -164,13 +169,6 @@ export function FilesPanel({
   });
 
   useEffect(() => {
-    setRenamingPathKey(null);
-    opfsOps.resetOnRootChange();
-    diskOps.resetOnRootChange();
-    contextMenu.resetOnRootChange();
-  }, [localRootPath]);
-
-  useEffect(() => {
     const next = [
       ...flattenSourceFileNodes(localTree).map((node) => {
         const dir = node.path.slice(0, -1);
@@ -204,7 +202,10 @@ export function FilesPanel({
     workspace?.name,
   ]);
 
+  const { pendingDelete } = contextMenu;
+
   return (
+    // biome-ignore lint/a11y/noNoninteractiveElementInteractions: drop zone for files dragged in from the OS; the New File buttons are the keyboard path.
     <section
       aria-label={t("files_aria_label")}
       className={`files-panel${opfsOps.dragActive ? " files-panel--drag" : ""}`}
@@ -342,23 +343,20 @@ export function FilesPanel({
       <FilesContextMenu {...contextMenu.contextMenuProps} />
 
       <ConfirmDeleteDialog
-        count={contextMenu.activePendingDelete?.paths.length ?? 1}
+        count={pendingDelete?.targets.length ?? 1}
         name={
-          contextMenu.activePendingDelete
-            ? (contextMenu.activePendingDelete.paths[0]?.at(-1) ??
-              formatLocalDiskPath(
-                contextMenu.activePendingDelete.paths[0] ?? []
-              ))
+          pendingDelete
+            ? (pendingDelete.targets[0]?.path.at(-1) ??
+              formatLocalDiskPath(pendingDelete.targets[0]?.path ?? []))
             : ""
         }
         onCancel={contextMenu.handleCancelDelete}
         onConfirm={contextMenu.handleConfirmDelete}
-        open={contextMenu.activePendingDelete !== null}
+        open={pendingDelete !== null}
         targetKind={
-          contextMenu.activePendingDelete &&
-          contextMenu.activePendingDelete.targets.length > 1
+          pendingDelete && pendingDelete.targets.length > 1
             ? "mixed"
-            : (contextMenu.activePendingDelete?.targets[0]?.type ?? "file")
+            : (pendingDelete?.targets[0]?.type ?? "file")
         }
       />
 

@@ -14,6 +14,7 @@ import {
   readFile,
   writeFile,
 } from "@tauri-apps/plugin-fs";
+import { DEFAULT_MEGALO_VERSION } from "../app/constants";
 import { isTauriRuntime } from "../desktop/tauriRuntime";
 import { decodeTextFile, encodeMegaloTextFile } from "../files/decodeTextFile";
 import type { LocalDiskNode } from "../files/localFolder";
@@ -146,13 +147,6 @@ export function objectListsFolderIsEmpty(nodes: LocalDiskNode[]): boolean {
   return children.every((child) => child.virtual === true);
 }
 
-/** Virtual `object_lists/` tree of bundled defaults (browser / no workspace disk). */
-export function browserDefaultObjectListsTree(
-  objectListNames: readonly string[]
-): LocalDiskNode[] {
-  return withObjectListsFolder([], objectListNames).nodes;
-}
-
 /** Locate a node by relative path segments. */
 export function findLocalDiskNode(
   nodes: readonly LocalDiskNode[],
@@ -189,7 +183,7 @@ export function defaultObjectListText(
 ): string {
   const version = isMegaloVersionId(megaloVersionId)
     ? MEGALO_VERSIONS[megaloVersionId]
-    : MEGALO_VERSIONS["107-mcc"];
+    : MEGALO_VERSIONS[DEFAULT_MEGALO_VERSION];
   const lists = loadObjectListsForVersion(version);
   const stem = fileName.replace(/\.txt$/i, "").toLowerCase();
   const data = lists[stem as ObjectListType];

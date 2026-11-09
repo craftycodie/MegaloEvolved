@@ -1,18 +1,17 @@
 import { MEGACROW_BUILD_STRING } from "@megacrow/megalo";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isTauriRuntime } from "../desktop";
-import { type MegacrowSettings, mergeAppSettings } from "../workspace";
+import { updateAppSettings } from "../stores/settingsStore";
+import type { MegacrowSettings } from "../workspace";
 import { checkForAppUpdate, type GithubReleaseInfo } from "./updateCheck";
 
 interface UseUpdateCheckOptions {
-  commitSettings: (next: MegacrowSettings) => Promise<void>;
   megacrowSettings: MegacrowSettings | null;
   motdOpen: boolean;
   workspacesReady: boolean;
 }
 
 export function useUpdateCheck({
-  commitSettings,
   megacrowSettings,
   motdOpen,
   workspacesReady,
@@ -20,61 +19,49 @@ export function useUpdateCheck({
   const [updateRelease, setUpdateRelease] = useState<GithubReleaseInfo | null>(
     null
   );
-  const [updateOpen, setUpdateOpen] = useState(false);
-  const updateCheckDoneRef = useRef(false);
+  const updateCheckStartedRef = useRef(false);
+  const skippedUpdateVersion = megacrowSettings?.skippedUpdateVersion ?? null;
+  const settingsLoaded = megacrowSettings !== null;
 
+  // Check once per app session, as soon as settings are loaded. There is no
+  // cleanup cancel on purpose: settings commit on every file open, and a
+  // cancel tied to those re-renders (or to StrictMode's double effect run)
+  // dropped the result while the started flag blocked a retry.
   useEffect(() => {
-    if (updateCheckDoneRef.current || !workspacesReady || !megacrowSettings) {
+    if (updateCheckStartedRef.current || !workspacesReady || !settingsLoaded) {
       return;
     }
+    updateCheckStartedRef.current = true;
     if (!isTauriRuntime()) {
-      updateCheckDoneRef.current = true;
       return;
     }
-
-    let cancelled = false;
-    updateCheckDoneRef.current = true;
     void checkForAppUpdate({
       currentBuildString: MEGACROW_BUILD_STRING,
-      skippedUpdateVersion: megacrowSettings.skippedUpdateVersion,
+      skippedUpdateVersion,
     }).then((result) => {
-      if (cancelled || result.kind !== "available") {
-        return;
+      if (result.kind === "available") {
+        setUpdateRelease(result.release);
       }
-      setUpdateRelease(result.release);
     });
+  }, [settingsLoaded, skippedUpdateVersion, workspacesReady]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [megacrowSettings, workspacesReady]);
-
-  useEffect(() => {
-    if (!updateRelease || motdOpen) {
-      setUpdateOpen(false);
-      return;
-    }
-    setUpdateOpen(true);
-  }, [motdOpen, updateRelease]);
+  // Wait until the MOTD is closed before showing the update dialog.
+  const updateOpen = updateRelease !== null && !motdOpen;
 
   const handleUpdateDismiss = useCallback(() => {
-    setUpdateOpen(false);
     setUpdateRelease(null);
   }, []);
 
   const handleUpdateSkip = useCallback(() => {
-    if (!(megacrowSettings && updateRelease)) {
-      setUpdateOpen(false);
-      setUpdateRelease(null);
-      return;
+    if (updateRelease) {
+      updateAppSettings({ skippedUpdateVersion: updateRelease.tagName }).catch(
+        () => {
+          // Already logged by the settings store.
+        }
+      );
     }
-    const next = mergeAppSettings(megacrowSettings, {
-      skippedUpdateVersion: updateRelease.tagName,
-    });
-    setUpdateOpen(false);
     setUpdateRelease(null);
-    void commitSettings(next);
-  }, [commitSettings, megacrowSettings, updateRelease]);
+  }, [updateRelease]);
 
   return {
     handleUpdateDismiss,

@@ -6,10 +6,16 @@ import {
   installNativeContextMenuBlocker,
   installPrintShortcutBlocker,
 } from "./desktop";
-import "./styles.css";
+import { installDocumentEffects } from "./stores/documentEffects";
+import { installSettingsEffects } from "./stores/settingsEffects";
+import { bootstrapSettings } from "./stores/settingsStore";
+import "./styles/index.css";
 
 installPrintShortcutBlocker();
 installNativeContextMenuBlocker();
+installSettingsEffects();
+installDocumentEffects();
+void bootstrapSettings();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

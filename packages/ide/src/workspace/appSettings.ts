@@ -1,3 +1,4 @@
+import { APP_NAME } from "../app/constants";
 import {
   DEFAULT_EDITOR_THEME_ID,
   normalizeEditorThemeId,
@@ -26,7 +27,7 @@ const STORAGE_KEY = "megacrow_settings";
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   discordRichPresence: true,
-  gamertag: "MegaloEvolved",
+  gamertag: APP_NAME,
   compilerStrictness: false,
   compilerProfile: "megacrow",
   editorTheme: DEFAULT_EDITOR_THEME_ID,
@@ -52,33 +53,45 @@ export function normalizeGametypeAuthor(value: unknown): string {
   return trimmed.length > 0 ? trimmed : DEFAULT_APP_SETTINGS.gamertag;
 }
 
+/**
+ * The one place app preferences are validated. Accepts anything (parsed
+ * JSON, a settings file, a patched object) and fills bad or missing fields
+ * with defaults.
+ */
+export function normalizeAppSettings(raw: unknown): AppSettings {
+  const value = (typeof raw === "object" && raw !== null ? raw : {}) as Partial<
+    Record<keyof AppSettings, unknown>
+  >;
+  const bool = (field: unknown, fallback: boolean) =>
+    typeof field === "boolean" ? field : fallback;
+  return {
+    compilerProfile: normalizeCompilerProfile(value.compilerProfile),
+    compilerStrictness: bool(
+      value.compilerStrictness,
+      DEFAULT_APP_SETTINGS.compilerStrictness
+    ),
+    discordRichPresence: bool(
+      value.discordRichPresence,
+      DEFAULT_APP_SETTINGS.discordRichPresence
+    ),
+    editorTheme: normalizeEditorThemeId(value.editorTheme),
+    editorWordWrap: bool(
+      value.editorWordWrap,
+      DEFAULT_APP_SETTINGS.editorWordWrap
+    ),
+    gamertag: normalizeGametypeAuthor(value.gamertag),
+    locale: normalizeUiLocale(value.locale),
+    skippedUpdateVersion:
+      typeof value.skippedUpdateVersion === "string"
+        ? value.skippedUpdateVersion
+        : null,
+  };
+}
+
 export function readLocalAppSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return { ...DEFAULT_APP_SETTINGS };
-    }
-    const parsed = JSON.parse(raw) as Partial<AppSettings>;
-    return {
-      discordRichPresence:
-        parsed.discordRichPresence ?? DEFAULT_APP_SETTINGS.discordRichPresence,
-      gamertag: normalizeGametypeAuthor(
-        typeof parsed.gamertag === "string" ? parsed.gamertag : undefined
-      ),
-      compilerStrictness:
-        parsed.compilerStrictness ?? DEFAULT_APP_SETTINGS.compilerStrictness,
-      compilerProfile: normalizeCompilerProfile(parsed.compilerProfile),
-      editorTheme: normalizeEditorThemeId(parsed.editorTheme),
-      editorWordWrap:
-        typeof parsed.editorWordWrap === "boolean"
-          ? parsed.editorWordWrap
-          : DEFAULT_APP_SETTINGS.editorWordWrap,
-      locale: normalizeUiLocale(parsed.locale),
-      skippedUpdateVersion:
-        typeof parsed.skippedUpdateVersion === "string"
-          ? parsed.skippedUpdateVersion
-          : null,
-    };
+    return normalizeAppSettings(raw ? JSON.parse(raw) : null);
   } catch {
     return { ...DEFAULT_APP_SETTINGS };
   }
@@ -90,13 +103,4 @@ export function writeLocalAppSettings(settings: AppSettings): void {
   } catch {
     // Ignore storage failures.
   }
-}
-
-/** Sync browser helper; Tauri uses on-disk MegacrowSettings via megacrowSettings.ts. */
-export function getAppSettings(): AppSettings {
-  return readLocalAppSettings();
-}
-
-export function saveAppSettings(settings: AppSettings): void {
-  writeLocalAppSettings(settings);
 }

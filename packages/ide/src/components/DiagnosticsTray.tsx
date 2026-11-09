@@ -2,11 +2,15 @@ import { type MouseEvent, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   diagnosticCanNavigate,
+  diagnosticSeverity,
+  formatAllDiagnosticsCopy,
+  formatDiagnosticCopy,
   type MegaloDiagnostic,
   objectListDisplayName,
+  sortDiagnosticsForTray,
 } from "../compile";
 import { writeClipboardText } from "../desktop";
-import { translate, useT } from "../localization";
+import { useT, useTPlural } from "../localization";
 import { useContextMenuPosition } from "../ui/useContextMenuPosition";
 
 interface Props {
@@ -20,45 +24,6 @@ interface ContextMenuState {
   text: string;
   x: number;
   y: number;
-}
-
-function severityOf(d: MegaloDiagnostic): "error" | "warning" {
-  return d.severity === "warning" ? "warning" : "error";
-}
-
-function sortLine(d: MegaloDiagnostic): number {
-  return d.objectList?.line ?? d.line;
-}
-
-function formatDiagnosticCopy(diagnostic: MegaloDiagnostic): string {
-  const severity =
-    severityOf(diagnostic) === "warning"
-      ? translate("diagnostics_severity_warning")
-      : translate("diagnostics_severity_error");
-  if (diagnostic.objectList) {
-    return translate("diagnostics_copy_object_list", {
-      severity,
-      file: objectListDisplayName(diagnostic.objectList),
-      line: diagnostic.objectList.line,
-      message: diagnostic.message,
-    });
-  }
-  if (diagnostic.trayOnly) {
-    return translate("diagnostics_copy_tray_only", {
-      severity,
-      message: diagnostic.message,
-    });
-  }
-  return translate("diagnostics_copy_line", {
-    severity,
-    line: diagnostic.line,
-    column: diagnostic.column,
-    message: diagnostic.message,
-  });
-}
-
-function formatAllDiagnosticsCopy(diagnostics: MegaloDiagnostic[]): string {
-  return diagnostics.map(formatDiagnosticCopy).join("\n");
 }
 
 function SeverityIcon({ severity }: { severity: "error" | "warning" }) {
@@ -98,7 +63,7 @@ function DiagnosticsContextMenu({
   onClose: () => void;
 }) {
   const t = useT();
-  const panelRef = useContextMenuPosition(menu, onClose);
+  const { onKeyDown, panelRef } = useContextMenuPosition(menu, onClose);
 
   if (!menu) {
     return null;
@@ -107,6 +72,7 @@ function DiagnosticsContextMenu({
   return createPortal(
     <div
       className="files-context-menu"
+      onKeyDown={onKeyDown}
       ref={panelRef}
       role="menu"
       style={{
@@ -139,30 +105,14 @@ export function DiagnosticsTray({
   height,
 }: Props) {
   const t = useT();
+  const tPlural = useTPlural();
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const errorCount = diagnostics.filter(
-    (d) => severityOf(d) === "error"
+    (d) => diagnosticSeverity(d) === "error"
   ).length;
   const warningCount = diagnostics.length - errorCount;
 
-  const sorted = [...diagnostics].sort((a, b) => {
-    const aSeverity = severityOf(a);
-    const bSeverity = severityOf(b);
-    if (aSeverity !== bSeverity) {
-      return aSeverity === "error" ? -1 : 1;
-    }
-    const aNav = diagnosticCanNavigate(a);
-    const bNav = diagnosticCanNavigate(b);
-    if (aNav !== bNav) {
-      return aNav ? -1 : 1;
-    }
-    const aLine = sortLine(a);
-    const bLine = sortLine(b);
-    if (aLine !== bLine) {
-      return aLine - bLine;
-    }
-    return a.column - b.column;
-  });
+  const sorted = sortDiagnosticsForTray(diagnostics);
 
   const onItemContextMenu = (
     event: MouseEvent,
@@ -178,10 +128,9 @@ export function DiagnosticsTray({
   };
 
   return (
-    <div
+    <section
       aria-label={t("diagnostics_aria_label")}
       className="diagnostics-tray"
-      role="region"
       style={height === undefined ? undefined : { height }}
     >
       <div className="diagnostics-tray-header">
@@ -190,22 +139,12 @@ export function DiagnosticsTray({
           <span className="diagnostics-tray-counts">
             {errorCount > 0 && (
               <span className="diagnostics-tray-count diagnostics-tray-count--error">
-                {t(
-                  errorCount === 1
-                    ? "diagnostics_error_one"
-                    : "diagnostics_error_other",
-                  { count: errorCount }
-                )}
+                {tPlural("diagnostics_error", errorCount)}
               </span>
             )}
             {warningCount > 0 && (
               <span className="diagnostics-tray-count diagnostics-tray-count--warn">
-                {t(
-                  warningCount === 1
-                    ? "diagnostics_warning_one"
-                    : "diagnostics_warning_other",
-                  { count: warningCount }
-                )}
+                {tPlural("diagnostics_warning", warningCount)}
               </span>
             )}
             {diagnostics.length === 0 && (
@@ -244,7 +183,7 @@ export function DiagnosticsTray({
           <li className="diagnostics-tray-empty">{t("diagnostics_empty")}</li>
         ) : (
           sorted.map((diagnostic, index) => {
-            const severity = severityOf(diagnostic);
+            const severity = diagnosticSeverity(diagnostic);
             const canNavigate = diagnosticCanNavigate(diagnostic);
             const locationLabel = diagnostic.objectList
               ? t("diagnostics_location_object_list", {
@@ -293,6 +232,6 @@ export function DiagnosticsTray({
         menu={contextMenu}
         onClose={() => setContextMenu(null)}
       />
-    </div>
+    </section>
   );
 }

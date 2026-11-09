@@ -1,6 +1,12 @@
-/** Normalize path separators to forward slashes for logical workspace paths. */
+/**
+ * Normalize path separators to forward slashes for logical workspace paths.
+ * Repeated separators collapse, except the leading pair of a UNC path
+ * (`\\server\share`), which stays `//server/share`.
+ */
 export function normalizeLogicalPath(path: string): string {
-  return path.replace(/\\/g, "/").replace(/\/+/g, "/");
+  const forward = path.replace(/\\/g, "/");
+  const collapsed = forward.replace(/\/+/g, "/");
+  return forward.startsWith("//") ? `/${collapsed}` : collapsed;
 }
 
 export function joinLogicalPaths(base: string, relative: string): string {

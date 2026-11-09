@@ -1,3 +1,4 @@
+import { isWindowsPlatform } from "../app/constants";
 /** Normalize path for case-insensitive Windows-friendly comparisons. */
 export function normalizePathKey(path: string): string {
   return path.replace(/\//g, "\\").replace(/\\+$/, "").toLowerCase();
@@ -99,11 +100,7 @@ export async function getEditingKitRoot(
 export async function canRegenerateObjectListsWithTool(
   editingKitRoot: string
 ): Promise<boolean> {
-  if (typeof navigator === "undefined") {
-    return false;
-  }
-  const isWindows = /Win/i.test(navigator.platform || navigator.userAgent);
-  if (!isWindows) {
+  if (!isWindowsPlatform()) {
     return false;
   }
   try {

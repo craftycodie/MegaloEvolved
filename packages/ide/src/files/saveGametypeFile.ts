@@ -9,6 +9,7 @@ import { join } from "@tauri-apps/api/path";
 import { save } from "@tauri-apps/plugin-dialog";
 
 import { writeFile } from "@tauri-apps/plugin-fs";
+import { DEFAULT_MEGALO_VERSION } from "../app/constants";
 import { getCompileMegaloVersion } from "../compile/megaloCompile";
 import { isTauriRuntime } from "../desktop/tauriRuntime";
 import {
@@ -17,7 +18,6 @@ import {
   finalizeGametypeSaveBytes,
   type GametypeSaveFormat,
 } from "../gametype/gametypeSaveFormat";
-
 import type { Workspace } from "../workspace/workspace";
 
 export function gametypeSaveFileName(
@@ -143,7 +143,7 @@ export async function writeBuildOutputsToWorkspace(
 
   mgloBytes: Uint8Array,
 
-  megaloVersionId: MegaloVersionId = "107-mcc"
+  megaloVersionId: MegaloVersionId = DEFAULT_MEGALO_VERSION
 ): Promise<{ mgloPath: string; binPath: string }> {
   if (workspace.type !== "tauri") {
     throw new Error("Build requires the desktop app with an active workspace.");

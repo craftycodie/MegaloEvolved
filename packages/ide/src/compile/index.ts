@@ -1,6 +1,7 @@
 export * from "./compileAnalysis";
 export * from "./compileClient";
 export * from "./diagnostics";
+export * from "./diagnosticsTray";
 export * from "./megaloBaseDirective";
 export * from "./megaloCompile";
 export * from "./megaloCompilerSettings";

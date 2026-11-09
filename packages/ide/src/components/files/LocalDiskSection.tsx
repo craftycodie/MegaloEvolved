@@ -142,6 +142,7 @@ export function LocalDiskSection({
                   canRegenerateObjectLists ? onRegenerateObjectLists : undefined
                 }
                 renamingPathKey={renamingPathKey}
+                treeLabel={t("files_explorer_title")}
               />
             )}
           </>

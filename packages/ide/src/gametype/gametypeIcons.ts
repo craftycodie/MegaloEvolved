@@ -37,32 +37,6 @@ const ENGINE_ICON_SUFFIXES = [
   "attack",
 ] as const;
 
-export function megaloIconSymbolToIndex(symbol: string): number {
-  const trimmed = symbol.trim();
-  if (/^\d+$/.test(trimmed)) {
-    return Math.max(0, Math.min(38, Number(trimmed)));
-  }
-
-  const engineIconMatch = /^engine_icon_(\d+)$/i.exec(trimmed);
-  if (engineIconMatch) {
-    return Math.max(0, Math.min(38, Number(engineIconMatch[1])));
-  }
-
-  const match = /^k_engine_icon_(.+)$/i.exec(trimmed);
-  if (!match) {
-    return 0;
-  }
-  const suffix = match[1]!.toLowerCase();
-  const numeric = Number(suffix);
-  if (Number.isInteger(numeric)) {
-    return Math.max(0, Math.min(38, numeric));
-  }
-  const index = ENGINE_ICON_SUFFIXES.indexOf(
-    suffix as (typeof ENGINE_ICON_SUFFIXES)[number]
-  );
-  return index >= 0 ? index : 0;
-}
-
 export function getReachGametypeIconUrl(
   iconIndex: number | null | undefined
 ): string | null {
@@ -82,4 +56,9 @@ export function getReachGametypeIconUrl(
 /** Fileshare icon used for open object-list documents in the sidebar. */
 export function getObjectListIconUrl(): string {
   return `${FILESHARE_BASE}/gametypes/reach_gametypes_pre_game_warm_up.png`;
+}
+
+/** Game icon for a Megalo version's picker rows (every version is Reach). */
+export function gameIconSrc(_version: string): string {
+  return `${import.meta.env.BASE_URL}img/icons/game-reach.png`;
 }

@@ -3,7 +3,6 @@ import { revealInFileManager, writeClipboardText } from "../../desktop";
 import {
   deleteTauriMegaloFile,
   type FileClipboardPayload,
-  getOpfsGametypeClipboardFiles,
   type LocalDiskNode,
   type LocalDiskRoot,
   pathKey,
@@ -34,6 +33,12 @@ export interface FilesContextMenuState {
 type OpfsOps = ReturnType<typeof useOpfsFileOps>;
 type DiskOps = ReturnType<typeof useDiskFileOps>;
 
+export interface PendingDelete {
+  /** Deletes the entries once the user confirms. */
+  run: () => Promise<void>;
+  targets: FilesContextTarget[];
+}
+
 interface Options {
   diskOps: DiskOps;
   localRoot: LocalDiskRoot | null;
@@ -62,9 +67,10 @@ export function useFilesPanelContextMenu({
   const [contextMenu, setContextMenu] = useState<FilesContextMenuState | null>(
     null
   );
-  const [pendingBuildsDelete, setPendingBuildsDelete] = useState<
-    string[][] | null
-  >(null);
+  /** Entries waiting for the delete confirmation, from any of the trees. */
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(
+    null
+  );
   const [pastePayload, setPastePayload] = useState<FileClipboardPayload | null>(
     null
   );
@@ -101,76 +107,33 @@ export function useFilesPanelContextMenu({
     [diskOps, outputPath]
   );
 
-  const activePendingDelete =
-    opfsOps.pendingDelete === null
-      ? diskOps.pendingDelete === null
-        ? pendingBuildsDelete === null
-          ? null
-          : {
-              paths: pendingBuildsDelete,
-              source: "builds" as const,
-              targets: pendingBuildsDelete.map((path) => ({
-                type: "file" as const,
-                path,
-              })),
-            }
-        : {
-            paths: diskOps.pendingDelete.paths,
-            source: "local" as const,
-            targets: diskOps.pendingDelete.targets,
-          }
-      : {
-          paths: [[opfsOps.pendingDelete.name]],
-          source: "opfs" as const,
-          targets: [
-            { type: "file" as const, path: [opfsOps.pendingDelete.name] },
-          ],
-        };
+  const deleteBuildOutputs = useCallback(
+    async (paths: string[][]) => {
+      if (!outputPath) {
+        return;
+      }
+      try {
+        setBuildsError(null);
+        for (const path of paths) {
+          await deleteTauriMegaloFile({ path: outputPath }, path);
+        }
+        await refreshBuilds();
+      } catch (error) {
+        setBuildsError(translateDiskError(error));
+        console.error("Failed to delete built gametype(s):", error);
+      }
+    },
+    [outputPath, refreshBuilds, setBuildsError]
+  );
 
   const handleConfirmDelete = useCallback(() => {
-    if (opfsOps.pendingDelete) {
-      opfsOps.confirmDelete();
-      return;
-    }
-    if (diskOps.pendingDelete) {
-      diskOps.confirmDelete();
-      return;
-    }
-    if (pendingBuildsDelete && outputPath) {
-      const paths = pendingBuildsDelete;
-      setPendingBuildsDelete(null);
-      void (async () => {
-        try {
-          setBuildsError(null);
-          for (const path of paths) {
-            await deleteTauriMegaloFile({ path: outputPath }, path);
-          }
-          await refreshBuilds();
-        } catch (error) {
-          setBuildsError(String(error));
-          console.error("Failed to delete built gametype(s):", error);
-        }
-      })();
-    }
-  }, [
-    diskOps,
-    opfsOps,
-    outputPath,
-    pendingBuildsDelete,
-    refreshBuilds,
-    setBuildsError,
-  ]);
+    const pending = pendingDelete;
+    setPendingDelete(null);
+    void pending?.run();
+  }, [pendingDelete]);
 
   const handleCancelDelete = useCallback(() => {
-    opfsOps.cancelDelete();
-    diskOps.cancelDelete();
-    setPendingBuildsDelete(null);
-  }, [diskOps, opfsOps]);
-
-  const resetOnRootChange = useCallback(() => {
-    setContextMenu(null);
-    setPastePayload(null);
-    setPendingBuildsDelete(null);
+    setPendingDelete(null);
   }, []);
 
   const contextMenuProps = {
@@ -192,8 +155,7 @@ export function useFilesPanelContextMenu({
               return;
             }
             const payload = { source: "opfs" as const, name };
-            const files = await getOpfsGametypeClipboardFiles(name);
-            await writeFileClipboard(payload, { files });
+            await writeFileClipboard(payload);
             setPastePayload(payload);
             return;
           }
@@ -209,9 +171,9 @@ export function useFilesPanelContextMenu({
           setPastePayload(payload);
         } catch (error) {
           if (source === "opfs") {
-            opfsOps.setOpfsError(String(error));
+            opfsOps.setOpfsError(translateDiskError(error));
           } else if (source === "builds") {
-            setBuildsError(String(error));
+            setBuildsError(translateDiskError(error));
           } else {
             setLocalError(translateDiskError(error));
           }
@@ -241,7 +203,7 @@ export function useFilesPanelContextMenu({
           await writeClipboardText(absolutes.join("\n"));
         } catch (error) {
           if (source === "builds") {
-            setBuildsError(String(error));
+            setBuildsError(translateDiskError(error));
           } else {
             setLocalError(translateDiskError(error));
           }
@@ -253,21 +215,25 @@ export function useFilesPanelContextMenu({
       if (deletable.length === 0) {
         return;
       }
+      const paths = deletable.map((target) => target.path);
       if (source === "opfs") {
-        const name = deletable[0]?.path[0];
+        // Browser storage deletes one file at a time.
+        const name = paths[0]?.[0];
         if (name) {
-          opfsOps.requestDelete(name);
+          setPendingDelete({
+            run: () => opfsOps.deleteOpfsFile(name),
+            targets: deletable.slice(0, 1),
+          });
         }
         return;
       }
-      if (source === "builds") {
-        setPendingBuildsDelete(deletable.map((target) => target.path));
-        return;
-      }
-      diskOps.requestDelete(
-        deletable.map((target) => target.path),
-        deletable
-      );
+      setPendingDelete({
+        run: () =>
+          source === "builds"
+            ? deleteBuildOutputs(paths)
+            : diskOps.deleteLocalFiles(paths),
+        targets: deletable,
+      });
     },
     onNewFile: (parentPath: string[], source: FilesContextSource) => {
       if (source === "local") {
@@ -323,7 +289,7 @@ export function useFilesPanelContextMenu({
               await revealInFileManager(absolute);
             } catch (error) {
               if (source === "builds") {
-                setBuildsError(String(error));
+                setBuildsError(translateDiskError(error));
               } else {
                 setLocalError(translateDiskError(error));
               }
@@ -334,11 +300,10 @@ export function useFilesPanelContextMenu({
   };
 
   return {
-    activePendingDelete,
     contextMenuProps,
     handleCancelDelete,
     handleConfirmDelete,
     openContextMenu,
-    resetOnRootChange,
+    pendingDelete,
   };
 }

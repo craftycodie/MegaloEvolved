@@ -16,7 +16,6 @@ import type {
   InitializeParams,
   PublishDiagnosticsParams,
 } from "vscode-languageserver-protocol";
-import type { Workspace } from "../workspace/workspace";
 import {
   handleListDirectory,
   handleResolveBaseFile,
@@ -26,96 +25,127 @@ import {
   type ResolveIncludeParams,
 } from "./resolvers";
 import {
-  bumpDocumentVersion,
   DEFAULT_DOC_URI,
-  getActiveFilePath,
-  getDocumentUri,
-  getLastSyncedText,
+  getActiveDocumentUri,
   getLspConfig,
-  isDocumentOpen,
   isPlaceholderDocumentUri,
+  nextDocumentVersion,
   pathToDocumentUri,
-  resetDocumentState,
   setActiveFilePath,
-  setConfiguredWorkspace,
-  setDocumentOpen,
-  setDocumentUri,
-  setLastSyncedText,
+  syncedDocuments,
 } from "./state";
 
-export { DEFAULT_DOC_URI, isPlaceholderDocumentUri, pathToDocumentUri };
+export {
+  DEFAULT_DOC_URI,
+  getActiveDocumentUri,
+  isPlaceholderDocumentUri,
+  pathToDocumentUri,
+};
 
-type DiagnosticsListener = (diagnostics: Diagnostic[]) => void;
+/** Called with each document's diagnostics; `[]` clears them. */
+type DiagnosticsListener = (uri: string, diagnostics: Diagnostic[]) => void;
 
 let connectionPromise: Promise<MessageConnection> | null = null;
 const diagnosticsListeners = new Set<DiagnosticsListener>();
 
-export function preloadLspConnection(): void {
-  void getConnection();
+function emitDiagnostics(uri: string, diagnostics: Diagnostic[]): void {
+  for (const listener of diagnosticsListeners) {
+    listener(uri, diagnostics);
+  }
 }
 
-export async function getConnection(): Promise<MessageConnection> {
+export function preloadLspConnection(): void {
+  getConnection().catch(() => {
+    // Logged by `dropConnection`; the next request retries.
+  });
+}
+
+/**
+ * Forget a dead connection so the next request starts a fresh worker. The
+ * new server knows no documents, so they are re-opened on their next sync.
+ */
+function dropConnection(reason: unknown): void {
   if (!connectionPromise) {
-    connectionPromise = (async () => {
-      const worker = new Worker(
-        new URL("../workers/megaloLspWorker.ts", import.meta.url),
-        { type: "module" }
-      );
-      const reader = new BrowserMessageReader(worker);
-      const writer = new BrowserMessageWriter(worker);
-      const connection = createMessageConnection(reader, writer);
-      connection.listen();
-
-      connection.onNotification(
-        "textDocument/publishDiagnostics",
-        (params: PublishDiagnosticsParams) => {
-          if (params.uri !== getDocumentUri()) {
-            return;
-          }
-          for (const listener of diagnosticsListeners) {
-            listener(params.diagnostics);
-          }
-        }
-      );
-
-      connection.onRequest(
-        MEGACROW_RESOLVE_INCLUDE_METHOD,
-        (params: ResolveIncludeParams) => handleResolveInclude(params)
-      );
-      connection.onRequest(
-        MEGACROW_RESOLVE_BASE_FILE_METHOD,
-        (params: ResolveBaseFileParams) => handleResolveBaseFile(params)
-      );
-      connection.onRequest(
-        MEGACROW_LIST_DIRECTORY_METHOD,
-        (params: ListDirectoryParams) => handleListDirectory(params)
-      );
-
-      const initParams: InitializeParams = {
-        processId: null,
-        rootUri: null,
-        capabilities: {
-          textDocument: {
-            semanticTokens: {
-              requests: { full: true },
-              tokenTypes: [],
-              tokenModifiers: [],
-              formats: ["relative"],
-              overlappingTokenSupport: false,
-              multilineTokenSupport: false,
-            },
-          },
-        },
-        workspaceFolders: null,
-        initializationOptions: {
-          config: getLspConfig(),
-        } satisfies MegacrowInitializationOptions,
-      };
-      await connection.sendRequest("initialize", initParams);
-      connection.sendNotification("initialized", {});
-      return connection;
-    })();
+    return;
   }
+  console.error("Megalo LSP connection lost; restarting on next use:", reason);
+  connectionPromise = null;
+  const openUris = [...syncedDocuments.keys()];
+  syncedDocuments.clear();
+  for (const uri of openUris) {
+    emitDiagnostics(uri, []);
+  }
+}
+
+async function connect(): Promise<MessageConnection> {
+  const worker = new Worker(
+    new URL("../workers/megaloLspWorker.ts", import.meta.url),
+    { type: "module" }
+  );
+  const reader = new BrowserMessageReader(worker);
+  const writer = new BrowserMessageWriter(worker);
+  const connection = createMessageConnection(reader, writer);
+
+  const fail = (reason: unknown) => {
+    dropConnection(reason);
+    connection.dispose();
+    worker.terminate();
+  };
+  worker.addEventListener("error", fail);
+  connection.onClose(() => fail(new Error("connection closed")));
+  connection.listen();
+
+  connection.onNotification(
+    "textDocument/publishDiagnostics",
+    (params: PublishDiagnosticsParams) => {
+      emitDiagnostics(params.uri, params.diagnostics);
+    }
+  );
+  connection.onRequest(
+    MEGACROW_RESOLVE_INCLUDE_METHOD,
+    (params: ResolveIncludeParams) => handleResolveInclude(params)
+  );
+  connection.onRequest(
+    MEGACROW_RESOLVE_BASE_FILE_METHOD,
+    (params: ResolveBaseFileParams) => handleResolveBaseFile(params)
+  );
+  connection.onRequest(
+    MEGACROW_LIST_DIRECTORY_METHOD,
+    (params: ListDirectoryParams) => handleListDirectory(params)
+  );
+
+  const initParams: InitializeParams = {
+    processId: null,
+    rootUri: null,
+    capabilities: {
+      textDocument: {
+        semanticTokens: {
+          requests: { full: true },
+          tokenTypes: [],
+          tokenModifiers: [],
+          formats: ["relative"],
+          overlappingTokenSupport: false,
+          multilineTokenSupport: false,
+        },
+      },
+    },
+    workspaceFolders: null,
+    initializationOptions: {
+      config: getLspConfig(),
+    } satisfies MegacrowInitializationOptions,
+  };
+  try {
+    await connection.sendRequest("initialize", initParams);
+  } catch (error) {
+    fail(error);
+    throw error;
+  }
+  connection.sendNotification("initialized", {});
+  return connection;
+}
+
+export function getConnection(): Promise<MessageConnection> {
+  connectionPromise ??= connect();
   return connectionPromise;
 }
 
@@ -128,89 +158,58 @@ export function subscribeLspDiagnostics(
   };
 }
 
-export function lspConfigureResolveContext(options: {
-  workspace?: Workspace | null;
-  filePath?: string | null;
-}): void {
-  let textToResync: string | null = null;
-
-  if (options.workspace !== undefined) {
-    // Used by the resolve handlers; `resolveBaseFile` is part of the server
-    // configuration (see `lspUpdateConfig`).
-    setConfiguredWorkspace(options.workspace);
-  }
-  if (options.filePath !== undefined) {
-    const nextPath = options.filePath;
-    const nextUri = nextPath ? pathToDocumentUri(nextPath) : DEFAULT_DOC_URI;
-    if (nextPath !== getActiveFilePath() || nextUri !== getDocumentUri()) {
-      const previousUri = getDocumentUri();
-      const wasOpen = isDocumentOpen();
-      textToResync = getLastSyncedText();
-      setActiveFilePath(nextPath);
-      setDocumentUri(nextUri);
-      setDocumentOpen(false);
-      setLastSyncedText(null);
-      for (const listener of diagnosticsListeners) {
-        listener([]);
-      }
-      if (wasOpen && previousUri !== nextUri) {
-        void getConnection().then((connection) => {
-          connection.sendNotification("textDocument/didClose", {
-            textDocument: { uri: previousUri },
-          });
-        });
-      }
-    }
-  }
-
-  if (textToResync !== null) {
-    void lspSyncDocument(textToResync);
-  }
-}
-
-export async function lspResetSession(): Promise<void> {
+/**
+ * Send `text` for `uri` (default: the active document): `didOpen` the first
+ * time, `didChange` when the text differs from what the server has.
+ */
+export async function lspSyncDocument(
+  text: string,
+  uri: string = getActiveDocumentUri()
+): Promise<void> {
   const connection = await getConnection();
-  const { previousUri, wasOpen } = resetDocumentState();
-  for (const listener of diagnosticsListeners) {
-    listener([]);
-  }
-  if (wasOpen) {
-    connection.sendNotification("textDocument/didClose", {
-      textDocument: { uri: previousUri },
-    });
-  }
-  connection.sendNotification(MEGACROW_RESET_SESSION_METHOD, {});
-}
-
-export async function lspSyncDocument(text: string): Promise<void> {
-  const connection = await getConnection();
-  if (isDocumentOpen() && getLastSyncedText() === text) {
+  const synced = syncedDocuments.get(uri);
+  if (synced?.text === text) {
     return;
   }
-  const version = bumpDocumentVersion();
-  setLastSyncedText(text);
-  const uri = getDocumentUri();
-  if (!isDocumentOpen()) {
-    setDocumentOpen(true);
+  const version = nextDocumentVersion();
+  syncedDocuments.set(uri, { text, version });
+  if (!synced) {
     connection.sendNotification("textDocument/didOpen", {
-      textDocument: {
-        uri,
-        languageId: "megalo",
-        version,
-        text,
-      },
+      textDocument: { uri, languageId: "megalo", version, text },
     });
     return;
   }
   connection.sendNotification("textDocument/didChange", {
-    textDocument: {
-      uri,
-      version,
-    },
+    textDocument: { uri, version },
     contentChanges: [{ text }],
   });
 }
 
-export function lspDocumentUri(): string {
-  return getDocumentUri();
+/** Tell the server a document is gone, and clear its diagnostics. */
+export async function lspCloseDocument(uri: string): Promise<void> {
+  if (!syncedDocuments.delete(uri)) {
+    return;
+  }
+  emitDiagnostics(uri, []);
+  const connection = await getConnection();
+  connection.sendNotification("textDocument/didClose", {
+    textDocument: { uri },
+  });
+}
+
+/**
+ * Set the file shown in the editor: relative includes resolve from it, and
+ * requests without a URI go to it. Documents stay open on the server until
+ * the editor closes them (`lspCloseDocument`).
+ */
+export function lspSetActiveFile(filePath: string | null): void {
+  setActiveFilePath(filePath);
+}
+
+export async function lspResetSession(): Promise<void> {
+  setActiveFilePath(null);
+  const uris = [...syncedDocuments.keys()];
+  await Promise.all(uris.map((uri) => lspCloseDocument(uri)));
+  const connection = await getConnection();
+  connection.sendNotification(MEGACROW_RESET_SESSION_METHOD, {});
 }

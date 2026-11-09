@@ -6,8 +6,11 @@ import {
   getShortDescription,
   MEGALO_VERSIONS,
 } from "@megacrow/megalo";
+import { DEFAULT_MEGALO_VERSION } from "../app/constants";
 
-export function getVersionInfo(version: MegaloVersionId = "107-mcc") {
+export function getVersionInfo(
+  version: MegaloVersionId = DEFAULT_MEGALO_VERSION
+) {
   const info = MEGALO_VERSIONS[version];
   return {
     id: version,

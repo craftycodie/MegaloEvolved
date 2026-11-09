@@ -1,4 +1,4 @@
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import react from "@vitejs/plugin-react";
 import type { Connect, Plugin } from "vite";
@@ -138,7 +138,18 @@ function docsCleanUrlFallback(): Plugin {
 }
 
 // https://v2.tauri.app/start/frontend/vite/
+/** Shown in the About dialog. The package does not export its package.json. */
+const blfVersion: string = JSON.parse(
+  readFileSync(
+    resolve(repoRoot, "node_modules/@blamnetwork/blf/package.json"),
+    "utf8"
+  )
+).version;
+
 export default defineConfig({
+  define: {
+    __BLF_VERSION__: JSON.stringify(blfVersion),
+  },
   base: appBase,
   plugins: [react(), megaloSrcAlias(), docsCleanUrlFallback()],
   clearScreen: false,

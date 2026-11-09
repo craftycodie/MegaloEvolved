@@ -22,23 +22,6 @@ export interface Workspace {
   type: WorkspaceType;
 }
 
-let activeWorkspaceStore: Workspace | null = null;
-
-export function setActiveWorkspace(workspace: Workspace | null): void {
-  activeWorkspaceStore = workspace;
-}
-
-/** Active workspace for this session (module store; set by App on bootstrap/switch). */
-export function getActiveWorkspace(): Workspace | null {
-  if (activeWorkspaceStore) {
-    return activeWorkspaceStore;
-  }
-  if (!isTauriRuntime() && isBrowserWorkspaceAvailable()) {
-    return storedToWorkspace(browserOpfsStoredWorkspace(), "opfs");
-  }
-  return null;
-}
-
 export function storedToWorkspace(
   stored: StoredWorkspace,
   type: WorkspaceType = "tauri"
@@ -72,20 +55,13 @@ export function resolveActiveWorkspace(
   return null;
 }
 
-export interface WorkspaceContext {
+/** Fields the add / edit workspace form produces. */
+export interface WorkspaceDraft {
   gameBuildNumber: number | null;
+  gameLaunchCommand: string;
   inputPath: string;
   megaloVersion: MegaloVersionId;
-  outputPath: string | null;
-  type: WorkspaceType;
-}
-
-export function workspaceContext(workspace: Workspace): WorkspaceContext {
-  return {
-    type: workspace.type,
-    megaloVersion: workspace.megaloVersion,
-    gameBuildNumber: workspace.gameBuildNumber,
-    inputPath: workspace.inputPath,
-    outputPath: workspace.outputPath,
-  };
+  name: string;
+  /** Empty string when the workspace has no build output folder. */
+  outputPath: string;
 }

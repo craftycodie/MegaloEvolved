@@ -8,19 +8,18 @@ import {
   type MegaloVersionId,
   resolveGameBuildNumber,
 } from "@megacrow/megalo";
-import { join } from "@tauri-apps/api/path";
-import { exists, readTextFile } from "@tauri-apps/plugin-fs";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { DEFAULT_MEGALO_VERSION } from "../../app/constants";
 import { pickTauriFolder } from "../../files";
 import { type IdeMessageKey, useT } from "../../localization";
-import type { StoredWorkspace } from "../../workspace";
+import { Dialog } from "../../ui/Dialog";
+import { CloseIcon } from "../../ui/icons";
+import type { StoredWorkspace, WorkspaceDraft } from "../../workspace";
 import {
-  guessHrekRootFromScripts,
-  guessOutputPathFromScripts,
-  parseProjectXmlDisplayName,
-} from "../../workspace";
+  inferWorkspaceFromScripts,
+  REACH_BUILD_LABEL_KEYS,
+} from "../../workspace/inferWorkspace";
 import { BROWSER_MEGALO_VERSIONS } from "../MegaloVersionMenu";
-import { dismissIfBackdropMouseDown } from "./dismissIfBackdrop";
 
 /** Workspace versions with a real compile backend. */
 export const WORKSPACE_MEGALO_VERSIONS: readonly MegaloVersionId[] =
@@ -30,25 +29,8 @@ function gameBuildOptionLabel(
   t: (key: IdeMessageKey) => string,
   buildNumber: number
 ): string {
-  const name =
-    buildNumber === 9449
-      ? t("workspace_modal_game_version_beta")
-      : buildNumber === 9664
-        ? t("workspace_modal_game_version_beta_tu1")
-        : buildNumber === 9730
-          ? t("workspace_modal_game_version_delta")
-          : String(buildNumber);
-  return `${name} (${buildNumber})`;
-}
-
-export interface WorkspaceDraft {
-  gameBuildNumber: number | null;
-  gameLaunchCommand: string;
-  inputPath: string;
-  megaloVersion: MegaloVersionId;
-  name: string;
-  /** Empty string when the workspace has no build output folder. */
-  outputPath: string;
+  const key = REACH_BUILD_LABEL_KEYS.get(buildNumber);
+  return `${key ? t(key) : String(buildNumber)} (${buildNumber})`;
 }
 
 interface Props {
@@ -69,59 +51,35 @@ export function AddWorkspaceModal({
 }: Props) {
   const t = useT();
   const nameRef = useRef<HTMLInputElement>(null);
-  const [name, setName] = useState("");
+  // The form starts from `initialWorkspace` once. The parent remounts the
+  // modal (via `key`) each time it opens or switches workspace, so typing is
+  // never reset by a re-render.
+  const initialVersion =
+    initialWorkspace?.megaloVersion ?? DEFAULT_MEGALO_VERSION;
+  const [name, setName] = useState(initialWorkspace?.name ?? "");
   const [megaloVersion, setMegaloVersion] =
-    useState<MegaloVersionId>("107-mcc");
-  const [inputPath, setInputPath] = useState("");
-  const [outputPath, setOutputPath] = useState("");
-  const [gameLaunchCommand, setGameLaunchCommand] = useState("");
-  const [gameBuildNumber, setGameBuildNumber] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const isEdit = !!initialWorkspace;
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    setName(initialWorkspace?.name ?? "");
-    setMegaloVersion(initialWorkspace?.megaloVersion ?? "107-mcc");
-    setInputPath(initialWorkspace?.inputPath ?? "");
-    setOutputPath(initialWorkspace?.outputPath ?? "");
-    setGameLaunchCommand(initialWorkspace?.gameLaunchCommand ?? "");
-    setGameBuildNumber(
+    useState<MegaloVersionId>(initialVersion);
+  const [inputPath, setInputPath] = useState(initialWorkspace?.inputPath ?? "");
+  const [outputPath, setOutputPath] = useState(
+    initialWorkspace?.outputPath ?? ""
+  );
+  const [gameLaunchCommand, setGameLaunchCommand] = useState(
+    initialWorkspace?.gameLaunchCommand ?? ""
+  );
+  const [gameBuildNumber, setGameBuildNumber] = useState<number | null>(
+    () =>
       resolveGameBuildNumber(
-        initialWorkspace?.megaloVersion ?? "107-mcc",
+        initialVersion,
         initialWorkspace?.gameBuildNumber
       ) ?? null
-    );
-    setError(null);
-    setBusy(false);
-    const frame = requestAnimationFrame(() => nameRef.current?.focus());
-    return () => cancelAnimationFrame(frame);
-  }, [open, initialWorkspace]);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onCancel?.();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, onCancel]);
+  );
+  const [error, setError] = useState<string | null>(null);
+  const isEdit = !!initialWorkspace;
 
   const canSave = useMemo(
     () => name.trim().length > 0 && inputPath.trim().length > 0,
     [name, inputPath]
   );
-
-  if (!open) {
-    return null;
-  }
 
   const dismiss = () => {
     onCancel?.();
@@ -134,36 +92,13 @@ export function AddWorkspaceModal({
     }
     setInputPath(selected);
 
-    // Only fill name from project.xml when the user hasn't typed one yet.
-    if (!name.trim()) {
-      const hrekRoot = guessHrekRootFromScripts(selected);
-      if (hrekRoot) {
-        try {
-          const projectXmlPath = await join(hrekRoot, "project.xml");
-          if (await exists(projectXmlPath)) {
-            const displayName = parseProjectXmlDisplayName(
-              await readTextFile(projectXmlPath)
-            );
-            if (displayName) {
-              setName(displayName);
-            }
-          }
-        } catch {
-          // leave name empty if project.xml cannot be read
-        }
-      }
+    const inferred = await inferWorkspaceFromScripts(selected);
+    // Only fill the name when the user hasn't typed one yet.
+    if (!name.trim() && inferred.name) {
+      setName(inferred.name);
     }
-
-    const guessed = guessOutputPathFromScripts(selected);
-    if (!guessed) {
-      return;
-    }
-    try {
-      if (await exists(guessed)) {
-        setOutputPath(guessed);
-      }
-    } catch {
-      // leave output as-is if exists check fails
+    if (inferred.outputPath) {
+      setOutputPath(inferred.outputPath);
     }
   };
 
@@ -186,7 +121,6 @@ export function AddWorkspaceModal({
       setError(t("workspace_modal_error_scripts"));
       return;
     }
-    setBusy(true);
     setError(null);
     onSave({
       name: trimmedName,
@@ -199,215 +133,201 @@ export function AddWorkspaceModal({
       gameBuildNumber:
         resolveGameBuildNumber(megaloVersion, gameBuildNumber) ?? null,
     });
-    setBusy(false);
   };
 
   return (
-    <div
-      className="workspace-modal-backdrop"
-      onMouseDown={(event) => dismissIfBackdropMouseDown(event, dismiss)}
-      role="presentation"
+    <Dialog
+      aria-labelledby="workspace-modal-title"
+      className="workspace-modal"
+      initialFocusRef={nameRef}
+      onClose={dismiss}
+      open={open}
     >
-      <div
-        aria-labelledby="workspace-modal-title"
-        aria-modal="true"
-        className="workspace-modal"
-        role="dialog"
-      >
-        <div className="workspace-modal-header">
-          <h2 className="workspace-modal-title" id="workspace-modal-title">
-            {isEdit
-              ? t("workspace_modal_edit_title")
-              : t("workspace_modal_add_title")}
-          </h2>
-          <button
-            aria-label={t("common_close")}
-            className="workspace-modal-close"
-            onClick={dismiss}
-            title={t("common_close")}
-            type="button"
-          >
-            <svg aria-hidden="true" viewBox="0 0 16 16">
-              <path
-                d="M4.2 4.2 11.8 11.8M11.8 4.2 4.2 11.8"
-                fill="none"
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeWidth="1.4"
-              />
-            </svg>
-          </button>
-        </div>
-        <p className="workspace-modal-hint">
-          {required
-            ? t("workspace_modal_hint_required")
-            : t("workspace_modal_hint")}
-        </p>
+      <div className="workspace-modal-header">
+        <h2 className="workspace-modal-title" id="workspace-modal-title">
+          {isEdit
+            ? t("workspace_modal_edit_title")
+            : t("workspace_modal_add_title")}
+        </h2>
+        <button
+          aria-label={t("common_close")}
+          className="workspace-modal-close"
+          onClick={dismiss}
+          title={t("common_close")}
+          type="button"
+        >
+          <CloseIcon />
+        </button>
+      </div>
+      <p className="workspace-modal-hint">
+        {required
+          ? t("workspace_modal_hint_required")
+          : t("workspace_modal_hint")}
+      </p>
 
-        <div className="workspace-modal-field-row">
-          <label className="workspace-modal-field">
-            <span>
-              {t("workspace_modal_name")}{" "}
-              <span className="workspace-modal-required">*</span>
-            </span>
-            <input
-              maxLength={64}
-              onChange={(event) => setName(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && canSave) {
-                  event.preventDefault();
-                  handleSave();
-                }
-              }}
-              placeholder={t("workspace_modal_name_placeholder")}
-              ref={nameRef}
-              required
-              type="text"
-              value={name}
-            />
-          </label>
-
-          <label className="workspace-modal-field">
-            <span>{t("workspace_modal_megalo_version")}</span>
-            <select
-              onChange={(event) => {
-                const value = event.target.value;
-                if (isMegaloVersionId(value)) {
-                  setMegaloVersion(value);
-                  setGameBuildNumber(
-                    resolveGameBuildNumber(value, gameBuildNumber) ?? null
-                  );
-                }
-              }}
-              value={megaloVersion}
-            >
-              {WORKSPACE_MEGALO_VERSIONS.map((id) => (
-                <option key={id} value={id}>
-                  {id} — {getLabel(MEGALO_VERSIONS[id])}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="workspace-modal-field">
+      <div className="workspace-modal-field-row">
+        <label className="workspace-modal-field">
           <span>
-            {t("workspace_modal_scripts_folder")}{" "}
+            {t("workspace_modal_name")}{" "}
             <span className="workspace-modal-required">*</span>
           </span>
-          <div className="workspace-modal-path-row">
-            <input
-              onChange={(event) => setInputPath(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && canSave) {
-                  event.preventDefault();
-                  handleSave();
-                }
-              }}
-              placeholder={t("workspace_modal_scripts_placeholder")}
-              required
-              type="text"
-              value={inputPath}
-            />
-            <button
-              className="workspace-modal-browse"
-              onClick={() => void pickScripts()}
-              type="button"
-            >
-              {t("workspace_modal_browse")}
-            </button>
-          </div>
-        </div>
+          <input
+            maxLength={64}
+            onChange={(event) => setName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && canSave) {
+                event.preventDefault();
+                handleSave();
+              }
+            }}
+            placeholder={t("workspace_modal_name_placeholder")}
+            ref={nameRef}
+            required
+            type="text"
+            value={name}
+          />
+        </label>
 
-        <div className="workspace-modal-field">
-          <span>{t("workspace_modal_output_folder")}</span>
-          <div className="workspace-modal-path-row">
-            <input
-              onChange={(event) => setOutputPath(event.target.value)}
-              placeholder={t("workspace_modal_output_placeholder")}
-              type="text"
-              value={outputPath}
-            />
-            <button
-              className="workspace-modal-browse"
-              onClick={() => void pickOutput()}
-              type="button"
-            >
-              {t("workspace_modal_browse")}
-            </button>
-          </div>
-        </div>
+        <label className="workspace-modal-field">
+          <span>{t("workspace_modal_megalo_version")}</span>
+          <select
+            onChange={(event) => {
+              const value = event.target.value;
+              if (isMegaloVersionId(value)) {
+                setMegaloVersion(value);
+                setGameBuildNumber(
+                  resolveGameBuildNumber(value, gameBuildNumber) ?? null
+                );
+              }
+            }}
+            value={megaloVersion}
+          >
+            {WORKSPACE_MEGALO_VERSIONS.map((id) => (
+              <option key={id} value={id}>
+                {id} — {getLabel(MEGALO_VERSIONS[id])}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
 
-        {isMccMegaloVersion(megaloVersion) ? null : (
-          <section className="workspace-modal-advanced">
-            <h3 className="workspace-modal-advanced-title">
-              {t("workspace_modal_advanced")}
-            </h3>
-            <div className="workspace-modal-field">
-              <span>{t("workspace_modal_launch_command")}</span>
-              <input
-                onChange={(event) => setGameLaunchCommand(event.target.value)}
-                placeholder={t("workspace_modal_launch_command_placeholder")}
-                spellCheck={false}
-                type="text"
-                value={gameLaunchCommand}
-              />
-              <p className="workspace-modal-field-hint">
-                {t("workspace_modal_launch_command_hint")}
-              </p>
-            </div>
-            {hasMultipleKnownGameBuilds(megaloVersion) ? (
-              <label className="workspace-modal-field">
-                <span>{t("workspace_modal_game_version")}</span>
-                <select
-                  onChange={(event) => {
-                    const value = Number(event.target.value);
-                    setGameBuildNumber(
-                      resolveGameBuildNumber(megaloVersion, value) ?? null
-                    );
-                  }}
-                  value={
-                    resolveGameBuildNumber(megaloVersion, gameBuildNumber) ?? ""
-                  }
-                >
-                  {knownGameBuildsFor(megaloVersion).map(
-                    (buildNumber: number) => (
-                      <option key={buildNumber} value={buildNumber}>
-                        {gameBuildOptionLabel(t, buildNumber)}
-                      </option>
-                    )
-                  )}
-                </select>
-                <span className="workspace-modal-field-hint">
-                  {t("workspace_modal_game_version_hint")}
-                </span>
-              </label>
-            ) : null}
-          </section>
-        )}
-
-        {error ? <p className="workspace-modal-error">{error}</p> : null}
-
-        <div className="workspace-modal-footer">
+      <div className="workspace-modal-field">
+        <span>
+          {t("workspace_modal_scripts_folder")}{" "}
+          <span className="workspace-modal-required">*</span>
+        </span>
+        <div className="workspace-modal-path-row">
+          <input
+            onChange={(event) => setInputPath(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && canSave) {
+                event.preventDefault();
+                handleSave();
+              }
+            }}
+            placeholder={t("workspace_modal_scripts_placeholder")}
+            required
+            type="text"
+            value={inputPath}
+          />
           <button
-            className="workspace-modal-secondary"
-            onClick={dismiss}
+            className="workspace-modal-browse"
+            onClick={() => void pickScripts()}
             type="button"
           >
-            {t("common_cancel")}
-          </button>
-          <button
-            className="workspace-modal-primary"
-            disabled={busy || !canSave}
-            onClick={handleSave}
-            type="button"
-          >
-            {isEdit
-              ? t("workspace_modal_save_button")
-              : t("workspace_modal_add_button")}
+            {t("workspace_modal_browse")}
           </button>
         </div>
       </div>
-    </div>
+
+      <div className="workspace-modal-field">
+        <span>{t("workspace_modal_output_folder")}</span>
+        <div className="workspace-modal-path-row">
+          <input
+            onChange={(event) => setOutputPath(event.target.value)}
+            placeholder={t("workspace_modal_output_placeholder")}
+            type="text"
+            value={outputPath}
+          />
+          <button
+            className="workspace-modal-browse"
+            onClick={() => void pickOutput()}
+            type="button"
+          >
+            {t("workspace_modal_browse")}
+          </button>
+        </div>
+      </div>
+
+      {isMccMegaloVersion(megaloVersion) ? null : (
+        <section className="workspace-modal-advanced">
+          <h3 className="workspace-modal-advanced-title">
+            {t("workspace_modal_advanced")}
+          </h3>
+          <div className="workspace-modal-field">
+            <span>{t("workspace_modal_launch_command")}</span>
+            <input
+              onChange={(event) => setGameLaunchCommand(event.target.value)}
+              placeholder={t("workspace_modal_launch_command_placeholder")}
+              spellCheck={false}
+              type="text"
+              value={gameLaunchCommand}
+            />
+            <p className="workspace-modal-field-hint">
+              {t("workspace_modal_launch_command_hint")}
+            </p>
+          </div>
+          {hasMultipleKnownGameBuilds(megaloVersion) ? (
+            <label className="workspace-modal-field">
+              <span>{t("workspace_modal_game_version")}</span>
+              <select
+                onChange={(event) => {
+                  const value = Number(event.target.value);
+                  setGameBuildNumber(
+                    resolveGameBuildNumber(megaloVersion, value) ?? null
+                  );
+                }}
+                value={
+                  resolveGameBuildNumber(megaloVersion, gameBuildNumber) ?? ""
+                }
+              >
+                {knownGameBuildsFor(megaloVersion).map(
+                  (buildNumber: number) => (
+                    <option key={buildNumber} value={buildNumber}>
+                      {gameBuildOptionLabel(t, buildNumber)}
+                    </option>
+                  )
+                )}
+              </select>
+              <span className="workspace-modal-field-hint">
+                {t("workspace_modal_game_version_hint")}
+              </span>
+            </label>
+          ) : null}
+        </section>
+      )}
+
+      {error ? <p className="workspace-modal-error">{error}</p> : null}
+
+      <div className="workspace-modal-footer">
+        <button
+          className="workspace-modal-secondary"
+          onClick={dismiss}
+          type="button"
+        >
+          {t("common_cancel")}
+        </button>
+        <button
+          className="workspace-modal-primary"
+          disabled={!canSave}
+          onClick={handleSave}
+          type="button"
+        >
+          {isEdit
+            ? t("workspace_modal_save_button")
+            : t("workspace_modal_add_button")}
+        </button>
+      </div>
+    </Dialog>
   );
 }

@@ -1,50 +1,41 @@
 import type { MegaloVersionId } from "@megacrow/megalo";
 import { isMccMegaloVersion, resolveGameBuildNumber } from "@megacrow/megalo";
 import { useCallback, useEffect, useState } from "react";
-import type { WorkspaceDraft } from "../components/dialogs/AddWorkspaceModal";
 import { isTauriRuntime } from "../desktop";
-import { lspUpdateConfig, lspVersionConfiguration } from "../lsp";
+import { closeAllDocuments } from "../stores/documentStore";
+import { bumpLocalDiskRevision } from "../stores/revisionStore";
+import {
+  setActiveWorkspaceOverride,
+  settingsStore,
+  updateSettings,
+} from "../stores/settingsStore";
 import {
   createWorkspaceId,
-  defaultMegacrowSettings,
   isPathInWorkspaceInput,
-  type MegacrowSettings,
   type StoredWorkspace,
   storedToWorkspace,
   type Workspace,
+  type WorkspaceDraft,
 } from "../workspace";
 
 interface UseWorkspacesOptions {
   activeWorkspace: Workspace | null;
-  applyWorkspace: (workspace: Workspace | null) => void;
   bootstrapNeedsAddWorkspace: boolean | null;
-  clearWorkspace: () => void;
-  commitSettings: (
-    next: MegacrowSettings,
-    workspaceOverride?: Workspace | null
-  ) => Promise<void>;
-  megacrowSettings: MegacrowSettings | null;
-  setObjectListNames: (names: readonly string[]) => void;
-  workspacesReady: boolean;
 }
+
+const ignoreLoggedError = () => {
+  // The settings store already logs failed saves.
+};
 
 export function useWorkspaces({
   activeWorkspace,
-  applyWorkspace,
   bootstrapNeedsAddWorkspace,
-  clearWorkspace,
-  commitSettings,
-  megacrowSettings,
-  setObjectListNames,
-  workspacesReady: _workspacesReady,
 }: UseWorkspacesOptions) {
   const [addWorkspaceOpen, setAddWorkspaceOpen] = useState(false);
   const [addWorkspaceRequired, setAddWorkspaceRequired] = useState(false);
   const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(
     null
   );
-  const [localDiskRevision, setLocalDiskRevision] = useState(0);
-  const [opfsRevision, setOpfsRevision] = useState(0);
 
   useEffect(() => {
     if (bootstrapNeedsAddWorkspace === null) {
@@ -66,217 +57,167 @@ export function useWorkspaces({
     setAddWorkspaceOpen(true);
   }, []);
 
-  const handleSelectWorkspace = useCallback(
-    (id: string) => {
-      if (!megacrowSettings) {
-        return;
-      }
-      if (megacrowSettings.activeWorkspaceId === id) {
-        return;
-      }
-      const next = {
-        ...megacrowSettings,
-        activeWorkspaceId: id,
-      };
-      clearWorkspace();
-      void commitSettings(next);
-      setLocalDiskRevision((value) => value + 1);
-    },
-    [clearWorkspace, commitSettings, megacrowSettings]
-  );
+  const closeWorkspaceModal = useCallback(() => {
+    setAddWorkspaceOpen(false);
+    setAddWorkspaceRequired(false);
+    setEditingWorkspaceId(null);
+  }, []);
 
+  const handleSelectWorkspace = useCallback((id: string) => {
+    if (settingsStore.getState().settings.activeWorkspaceId === id) {
+      return;
+    }
+    closeAllDocuments();
+    updateSettings((current) => ({
+      ...current,
+      activeWorkspaceId: id,
+    })).catch(ignoreLoggedError);
+    bumpLocalDiskRevision();
+  }, []);
+
+  /** Browser workspace only: its version lives in the session, not on disk. */
   const handleSelectMegaloVersion = useCallback(
-    async (version: MegaloVersionId) => {
+    (version: MegaloVersionId) => {
       if (!activeWorkspace || activeWorkspace.megaloVersion === version) {
         return;
       }
-      const nextBuildNumber =
-        resolveGameBuildNumber(version, activeWorkspace.gameBuildNumber) ??
-        null;
-      const nextLaunchCommand = isMccMegaloVersion(version)
-        ? null
-        : activeWorkspace.gameLaunchCommand;
-      const nextWorkspace = {
+      const nextWorkspace: Workspace = {
         ...activeWorkspace,
         megaloVersion: version,
-        gameBuildNumber: nextBuildNumber,
-        gameLaunchCommand: nextLaunchCommand,
+        gameBuildNumber:
+          resolveGameBuildNumber(version, activeWorkspace.gameBuildNumber) ??
+          null,
+        gameLaunchCommand: isMccMegaloVersion(version)
+          ? null
+          : activeWorkspace.gameLaunchCommand,
       };
-      applyWorkspace(nextWorkspace);
-      if (megacrowSettings) {
-        const next: MegacrowSettings = {
-          ...megacrowSettings,
-          workspaces: megacrowSettings.workspaces.map((workspace) =>
-            workspace.id === activeWorkspace.id
-              ? {
-                  ...workspace,
-                  megaloVersion: version,
-                  gameBuildNumber: nextBuildNumber,
-                  gameLaunchCommand: nextLaunchCommand,
-                }
-              : workspace
-          ),
-        };
-        void commitSettings(next, nextWorkspace);
-      }
-      try {
-        lspUpdateConfig({ megaloVersion: version });
-        const config = await lspVersionConfiguration(version);
-        setObjectListNames(config.objectListNames);
-      } catch (error) {
-        console.error("Failed to switch Megalo version:", error);
-      }
-    },
-    [
-      activeWorkspace,
-      applyWorkspace,
-      commitSettings,
-      megacrowSettings,
-      setObjectListNames,
-    ]
-  );
-
-  const handleDeleteWorkspace = useCallback(
-    (id: string) => {
-      if (!megacrowSettings) {
+      const stored = settingsStore
+        .getState()
+        .settings.workspaces.some((entry) => entry.id === activeWorkspace.id);
+      if (!stored) {
+        setActiveWorkspaceOverride(nextWorkspace);
         return;
       }
-      const remaining = megacrowSettings.workspaces.filter(
+      updateSettings((current) => ({
+        ...current,
+        workspaces: current.workspaces.map((entry) =>
+          entry.id === activeWorkspace.id
+            ? {
+                ...entry,
+                megaloVersion: nextWorkspace.megaloVersion,
+                gameBuildNumber: nextWorkspace.gameBuildNumber,
+                gameLaunchCommand: nextWorkspace.gameLaunchCommand,
+              }
+            : entry
+        ),
+      })).catch(ignoreLoggedError);
+    },
+    [activeWorkspace]
+  );
+
+  const handleDeleteWorkspace = useCallback((id: string) => {
+    const wasActive =
+      settingsStore.getState().settings.activeWorkspaceId === id;
+    if (wasActive) {
+      closeAllDocuments();
+    }
+    let remainingCount = 0;
+    updateSettings((current) => {
+      const remaining = current.workspaces.filter(
         (workspace) => workspace.id !== id
       );
-      const wasActive = megacrowSettings.activeWorkspaceId === id;
-      const nextActiveId = wasActive
-        ? (remaining[0]?.id ?? null)
-        : megacrowSettings.activeWorkspaceId;
-      const next: MegacrowSettings = {
-        ...megacrowSettings,
+      remainingCount = remaining.length;
+      return {
+        ...current,
         workspaces: remaining,
-        activeWorkspaceId: nextActiveId,
+        activeWorkspaceId:
+          current.activeWorkspaceId === id
+            ? (remaining[0]?.id ?? null)
+            : current.activeWorkspaceId,
       };
-      if (wasActive) {
-        clearWorkspace();
-      }
-      void commitSettings(next).then(() => {
-        setLocalDiskRevision((value) => value + 1);
-        if (remaining.length === 0 && isTauriRuntime()) {
+    })
+      .then(() => {
+        bumpLocalDiskRevision();
+        if (remainingCount === 0 && isTauriRuntime()) {
           setEditingWorkspaceId(null);
           setAddWorkspaceRequired(true);
           setAddWorkspaceOpen(true);
         }
-      });
-    },
-    [clearWorkspace, commitSettings, megacrowSettings]
-  );
+      })
+      .catch(ignoreLoggedError);
+  }, []);
 
   const handleSaveWorkspace = useCallback(
     (draft: WorkspaceDraft) => {
-      const base = megacrowSettings ?? defaultMegacrowSettings();
-      const nextOutputPath = draft.outputPath.trim() || null;
-      const nextLaunchCommand = draft.gameLaunchCommand.trim() || null;
-      const nextBuildNumber = draft.gameBuildNumber;
       const editingId = editingWorkspaceId;
-
-      setAddWorkspaceOpen(false);
-      setAddWorkspaceRequired(false);
-      setEditingWorkspaceId(null);
+      const fields = {
+        name: draft.name,
+        megaloVersion: draft.megaloVersion,
+        gameBuildNumber: draft.gameBuildNumber,
+        gameLaunchCommand: draft.gameLaunchCommand.trim() || null,
+        inputPath: draft.inputPath,
+        outputPath: draft.outputPath.trim() || null,
+      };
+      closeWorkspaceModal();
 
       if (editingId) {
-        let updated: StoredWorkspace | null = null;
-        const workspaces = base.workspaces.map((workspace) => {
-          if (workspace.id !== editingId) {
-            return workspace;
-          }
-          updated = {
-            ...workspace,
-            name: draft.name,
-            megaloVersion: draft.megaloVersion,
-            gameBuildNumber: nextBuildNumber,
-            gameLaunchCommand: nextLaunchCommand,
-            inputPath: draft.inputPath,
-            outputPath: nextOutputPath,
-            lastOpenFilePath:
-              workspace.lastOpenFilePath &&
-              isPathInWorkspaceInput(
-                workspace.lastOpenFilePath,
-                draft.inputPath
-              )
-                ? workspace.lastOpenFilePath
-                : null,
-          };
-          return updated;
-        });
-        const next: MegacrowSettings = {
-          ...base,
-          workspaces,
-          activeWorkspaceId: base.activeWorkspaceId ?? editingId,
-        };
-        const activeUpdated =
-          next.activeWorkspaceId === editingId ? updated : null;
-        if (activeUpdated) {
-          clearWorkspace();
+        if (settingsStore.getState().settings.activeWorkspaceId === editingId) {
+          // Paths or version may have changed under the open file.
+          closeAllDocuments();
         }
-        setLocalDiskRevision((value) => value + 1);
-        void commitSettings(
-          next,
-          activeUpdated ? storedToWorkspace(activeUpdated, "tauri") : undefined
-        ).catch(() => {
-          // Error already logged in commitSettings.
-        });
+        updateSettings((current) => ({
+          ...current,
+          activeWorkspaceId: current.activeWorkspaceId ?? editingId,
+          workspaces: current.workspaces.map((workspace) =>
+            workspace.id === editingId
+              ? {
+                  ...workspace,
+                  ...fields,
+                  lastOpenFilePath:
+                    workspace.lastOpenFilePath &&
+                    isPathInWorkspaceInput(
+                      workspace.lastOpenFilePath,
+                      fields.inputPath
+                    )
+                      ? workspace.lastOpenFilePath
+                      : null,
+                }
+              : workspace
+          ),
+        })).catch(ignoreLoggedError);
+        bumpLocalDiskRevision();
         return;
       }
 
       const stored: StoredWorkspace = {
+        ...fields,
         id: createWorkspaceId(),
-        name: draft.name,
-        megaloVersion: draft.megaloVersion,
-        gameBuildNumber: nextBuildNumber,
-        gameLaunchCommand: nextLaunchCommand,
-        inputPath: draft.inputPath,
-        outputPath: nextOutputPath,
         lastOpenFilePath: null,
       };
-      const next: MegacrowSettings = {
-        ...base,
-        workspaces: [...base.workspaces, stored],
-        activeWorkspaceId: stored.id,
-      };
-      clearWorkspace();
-      setLocalDiskRevision((value) => value + 1);
-      void commitSettings(next, storedToWorkspace(stored, "tauri")).catch(
-        () => {
-          // Error already logged in commitSettings.
-        }
-      );
+      closeAllDocuments();
+      bumpLocalDiskRevision();
+      updateSettings(
+        (current) => ({
+          ...current,
+          workspaces: [...current.workspaces, stored],
+          activeWorkspaceId: stored.id,
+        }),
+        { activeWorkspace: storedToWorkspace(stored, "tauri") }
+      ).catch(ignoreLoggedError);
     },
-    [clearWorkspace, commitSettings, editingWorkspaceId, megacrowSettings]
+    [closeWorkspaceModal, editingWorkspaceId]
   );
-
-  const handleFileDeleted = useCallback((onActiveFileDeleted: () => void) => {
-    setOpfsRevision((n) => n + 1);
-    setLocalDiskRevision((n) => n + 1);
-    onActiveFileDeleted();
-  }, []);
-
-  const bumpLocalDiskRevision = useCallback(() => {
-    setLocalDiskRevision((n) => n + 1);
-  }, []);
 
   return {
     addWorkspaceOpen,
     addWorkspaceRequired,
-    bumpLocalDiskRevision,
+    closeWorkspaceModal,
     editingWorkspaceId,
     handleAddWorkspace,
     handleDeleteWorkspace,
     handleEditWorkspace,
-    handleFileDeleted,
     handleSaveWorkspace,
     handleSelectMegaloVersion,
     handleSelectWorkspace,
-    localDiskRevision,
-    opfsRevision,
-    setAddWorkspaceOpen,
-    setAddWorkspaceRequired,
-    setEditingWorkspaceId,
   };
 }

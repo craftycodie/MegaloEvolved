@@ -1,16 +1,17 @@
-import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { GametypeSaveFormat } from "../gametype";
 import { type IdeMessageKey, useT } from "../localization";
-import { usePopoverPosition } from "../ui/usePopoverPosition";
+import { usePopover } from "../ui/usePopover";
 import { DOCS_PATHS, DocsHelpButton } from "./DocsHelpButton";
 
-interface SaveOption {
+type SaveOption = {
   descriptionKey: IdeMessageKey;
   format: GametypeSaveFormat;
-  label: string;
-  labelKey?: IdeMessageKey;
-}
+} & (
+  | { label: string; labelKey?: never }
+  /** Localized label (formats with a name rather than an extension). */
+  | { label?: never; labelKey: IdeMessageKey }
+);
 
 const SAVE_OPTIONS: SaveOption[] = [
   {
@@ -30,7 +31,6 @@ const SAVE_OPTIONS: SaveOption[] = [
   },
   {
     format: "asq",
-    label: "Autosave Queue",
     labelKey: "export_asq_label",
     descriptionKey: "export_asq_desc",
   },
@@ -45,42 +45,15 @@ interface Props {
 
 export function SaveAsMenu({ disabled = false, onSave }: Props) {
   const t = useT();
-  const [open, setOpen] = useState(false);
-  const { panelPos, panelRef, rootRef, triggerRef, updatePanelPosition } =
-    usePopoverPosition(open, { panelWidth: PANEL_WIDTH, alignRight: true });
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    const onPointerDown = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (
-        rootRef.current?.contains(target) ||
-        panelRef.current?.contains(target)
-      ) {
-        return;
-      }
-      setOpen(false);
-    };
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    };
-
-    window.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open, updatePanelPosition]);
+  const popover = usePopover({
+    alignRight: true,
+    kind: "menu",
+    panelWidth: PANEL_WIDTH,
+  });
+  const { open, panelPos, panelRef, rootRef, triggerRef } = popover;
 
   const handleSave = (format: GametypeSaveFormat) => {
-    setOpen(false);
+    popover.close();
     onSave(format);
   };
 
@@ -91,7 +64,7 @@ export function SaveAsMenu({ disabled = false, onSave }: Props) {
         aria-haspopup="menu"
         className="toolbar-btn save-as-menu-trigger"
         disabled={disabled}
-        onClick={() => setOpen((value) => !value)}
+        onClick={popover.toggle}
         ref={triggerRef}
         type="button"
       >
@@ -117,6 +90,7 @@ export function SaveAsMenu({ disabled = false, onSave }: Props) {
             <div
               aria-label={t("export_format_aria")}
               className="save-as-menu-panel"
+              onKeyDown={popover.onPanelKeyDown}
               ref={panelRef}
               role="menu"
               style={{

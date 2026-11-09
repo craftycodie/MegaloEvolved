@@ -1,16 +1,17 @@
+import { APP_NAME } from "../app/constants";
 import { compileMegaloDirectory } from "./compileDirectory";
 import { compileMegaloFile } from "./compileSource";
 import type { CliFilesystem } from "./filesystem";
 
 export function cliUsage(): string {
   return [
-    "MegaloEvolved CLI",
+    `${APP_NAME} CLI`,
     "",
     "Usage:",
     "  npm run cli -- --compile <source.txt> [destination.mglo|destination.bin]",
     "  npm run cli -- --compile-directory <source_dir> [destination_dir]",
-    "  MegaloEvolved.exe --compile <source.txt> [destination.mglo|destination.bin]",
-    "  MegaloEvolved.exe --compile-directory <source_dir> [destination_dir]",
+    `  ${APP_NAME}.exe --compile <source.txt> [destination.mglo|destination.bin]`,
+    `  ${APP_NAME}.exe --compile-directory <source_dir> [destination_dir]`,
     "",
     "Include and base resolution use the source file directory (or source_dir).",
     "Outputs are written beside the destination file or under destination_dir.",

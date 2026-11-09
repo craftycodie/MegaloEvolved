@@ -4,6 +4,7 @@ import {
   type MegaloVersionId,
   resolveGameBuildNumber,
 } from "@megacrow/megalo";
+import { DEFAULT_MEGALO_VERSION } from "../app/constants";
 import {
   ipcDiscoverHrekWorkspaces,
   ipcLoadMegacrowSettings,
@@ -15,13 +16,10 @@ import {
   workspaceInputPath,
   workspaceOutputPath,
 } from "../files/opfsStorage";
-import { normalizeEditorThemeId } from "../monaco/theme";
 import {
   type AppSettings,
   DEFAULT_APP_SETTINGS,
-  normalizeCompilerProfile,
-  normalizeGametypeAuthor,
-  normalizeUiLocale,
+  normalizeAppSettings,
   readLocalAppSettings,
   writeLocalAppSettings,
 } from "./appSettings";
@@ -80,50 +78,14 @@ export function defaultMegacrowSettings(
 export function appSettingsFromMegacrow(
   settings: MegacrowSettings
 ): AppSettings {
-  return {
-    discordRichPresence: settings.discordRichPresence,
-    gamertag: settings.gamertag,
-    compilerStrictness: settings.compilerStrictness,
-    compilerProfile: normalizeCompilerProfile(settings.compilerProfile),
-    editorTheme: normalizeEditorThemeId(settings.editorTheme),
-    editorWordWrap: settings.editorWordWrap,
-    locale: normalizeUiLocale(settings.locale),
-    skippedUpdateVersion: settings.skippedUpdateVersion ?? null,
-  };
+  return normalizeAppSettings(settings);
 }
 
 export function mergeAppSettings(
   settings: MegacrowSettings,
   patch: Partial<AppSettings>
 ): MegacrowSettings {
-  return {
-    ...settings,
-    ...patch,
-    gamertag:
-      patch.gamertag === undefined
-        ? settings.gamertag
-        : normalizeGametypeAuthor(patch.gamertag),
-    compilerProfile:
-      patch.compilerProfile === undefined
-        ? settings.compilerProfile
-        : normalizeCompilerProfile(patch.compilerProfile),
-    editorTheme:
-      patch.editorTheme === undefined
-        ? settings.editorTheme
-        : normalizeEditorThemeId(patch.editorTheme),
-    editorWordWrap:
-      patch.editorWordWrap === undefined
-        ? settings.editorWordWrap
-        : patch.editorWordWrap,
-    locale:
-      patch.locale === undefined
-        ? settings.locale
-        : normalizeUiLocale(patch.locale),
-    skippedUpdateVersion:
-      patch.skippedUpdateVersion === undefined
-        ? (settings.skippedUpdateVersion ?? null)
-        : patch.skippedUpdateVersion,
-  };
+  return { ...settings, ...normalizeAppSettings({ ...settings, ...patch }) };
 }
 
 /** Add discovered workspaces that are not already registered by input path. */
@@ -166,7 +128,7 @@ function normalizeStoredWorkspace(
       : null;
   const megaloVersion = isMegaloVersionId(String(raw.megaloVersion ?? ""))
     ? (raw.megaloVersion as MegaloVersionId)
-    : "107-mcc";
+    : DEFAULT_MEGALO_VERSION;
   const gameLaunchCommand =
     !isMccMegaloVersion(megaloVersion) &&
     typeof raw.gameLaunchCommand === "string" &&
@@ -208,24 +170,7 @@ export function normalizeMegacrowSettings(
     | null
     | undefined
 ): MegacrowSettings {
-  const prefs = {
-    discordRichPresence:
-      raw?.discordRichPresence ?? DEFAULT_APP_SETTINGS.discordRichPresence,
-    gamertag: normalizeGametypeAuthor(raw?.gamertag),
-    compilerStrictness:
-      raw?.compilerStrictness ?? DEFAULT_APP_SETTINGS.compilerStrictness,
-    compilerProfile: normalizeCompilerProfile(raw?.compilerProfile),
-    editorTheme: normalizeEditorThemeId(raw?.editorTheme),
-    editorWordWrap:
-      typeof raw?.editorWordWrap === "boolean"
-        ? raw.editorWordWrap
-        : DEFAULT_APP_SETTINGS.editorWordWrap,
-    locale: normalizeUiLocale(raw?.locale),
-    skippedUpdateVersion:
-      typeof raw?.skippedUpdateVersion === "string"
-        ? raw.skippedUpdateVersion
-        : null,
-  };
+  const prefs = normalizeAppSettings(raw);
   let workspaces = Array.isArray(raw?.workspaces)
     ? raw.workspaces
         .map((entry) =>
@@ -272,14 +217,6 @@ export function normalizeMegacrowSettings(
   };
 }
 
-export async function loadMegacrowSettingsFromDisk(): Promise<MegacrowSettings | null> {
-  const raw = await ipcLoadMegacrowSettings();
-  if (!raw) {
-    return null;
-  }
-  return normalizeMegacrowSettings(raw);
-}
-
 export async function saveMegacrowSettingsToDisk(
   settings: MegacrowSettings
 ): Promise<void> {
@@ -298,7 +235,9 @@ export function discoveredToStored(
     return {
       id: createWorkspaceId(),
       name: entry.name,
-      megaloVersion: isMegaloVersionId(version) ? version : "107-mcc",
+      megaloVersion: isMegaloVersionId(version)
+        ? version
+        : DEFAULT_MEGALO_VERSION,
       gameBuildNumber: null,
       gameLaunchCommand: null,
       inputPath: entry.inputPath,
@@ -357,7 +296,7 @@ export function browserOpfsStoredWorkspace(): StoredWorkspace {
   return {
     id: "opfs",
     name: "Browser",
-    megaloVersion: "107-mcc",
+    megaloVersion: DEFAULT_MEGALO_VERSION,
     gameBuildNumber: null,
     gameLaunchCommand: null,
     inputPath: workspaceInputPath(),

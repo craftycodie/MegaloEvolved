@@ -1,165 +1,125 @@
 import type { ObjectLists } from "@megacrow/megalo";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { isTauriRuntime } from "../../desktop";
 import type { LocalDiskNode } from "../../files";
-import {
-  isTauriDiskSupported,
-  type LocalDiskRoot,
-  listTauriMegaloTree,
-} from "../../files";
+import { listTauriMegaloTree } from "../../files";
 import { translateDiskError } from "../../localization";
 import {
   loadWorkspaceObjectLists,
   objectListsFolderIsEmpty,
-  watchWorkspaceInput,
 } from "../../workspace";
+import { useWatchedListing } from "./useWatchedListing";
+
+interface WorkspaceListing {
+  missingListNames: readonly string[];
+  /** Parsed object lists, or null when they could not be read. */
+  objectLists: ObjectLists | null;
+  /** Why the object lists could not be read (the tree is still shown). */
+  objectListsError: string | null;
+  tree: LocalDiskNode[];
+}
+
+const EMPTY_LISTING: WorkspaceListing = {
+  missingListNames: [],
+  objectLists: null,
+  objectListsError: null,
+  tree: [],
+};
 
 interface UseLocalDiskRefreshOptions {
   localDiskRevision: number;
-  localRoot: LocalDiskRoot | null;
   localRootPath: string | null;
   objectListNames: readonly string[];
   onMissingObjectListNamesChange?: (names: readonly string[]) => void;
   onWorkspaceObjectListsChange?: (lists: ObjectLists | null) => void;
 }
 
+/**
+ * The desktop workspace folder as a tree, kept current by the folder watcher
+ * and by `localDiskRevision`. Also publishes the workspace's object lists to
+ * the compiler and which list files are missing.
+ */
 export function useLocalDiskRefresh({
   localDiskRevision,
-  localRoot,
   localRootPath,
   objectListNames,
   onMissingObjectListNamesChange,
   onWorkspaceObjectListsChange,
 }: UseLocalDiskRefreshOptions) {
   const tauriAvailable = isTauriRuntime();
-  const localDiskAvailable = isTauriDiskSupported();
-  const [localTree, setLocalTree] = useState<LocalDiskNode[]>([]);
+  /** Errors from file operations (rename, delete…); listing never clears it. */
   const [localError, setLocalError] = useState<string | null>(null);
-  /** Set when the workspace input folder itself cannot be listed. */
-  const [rootError, setRootError] = useState<string | null>(null);
   const [ensureExpandedKeys, setEnsureExpandedKeys] = useState<string[]>([]);
-  const lastObjectListsJsonRef = useRef<string>("");
-  const localRootPathRef = useRef<string | null>(null);
-  localRootPathRef.current = localRootPath;
+  // Another folder: drop the old one's errors and expanded folders. Done
+  // while rendering (React's "adjust state when a prop changes" pattern) so
+  // the new folder never renders with stale state.
+  const [stateRootPath, setStateRootPath] = useState(localRootPath);
+  if (stateRootPath !== localRootPath) {
+    setStateRootPath(localRootPath);
+    setLocalError(null);
+    setEnsureExpandedKeys([]);
+  }
+  const lastObjectListsJsonRef = useRef("");
 
-  const refreshLocal = useCallback(async () => {
-    const rootPath = localRootPathRef.current;
-    if (!rootPath) {
-      setLocalTree([]);
-      onWorkspaceObjectListsChange?.(null);
-      onMissingObjectListNamesChange?.([]);
-      lastObjectListsJsonRef.current = "";
-      return;
-    }
-    let tree: LocalDiskNode[];
-    let missingListNames: readonly string[];
-    try {
-      setLocalError(null);
-      ({ nodes: tree, missingListNames } = await listTauriMegaloTree(
+  const listing = useWatchedListing({
+    empty: EMPTY_LISTING,
+    list: async (rootPath): Promise<WorkspaceListing> => {
+      const { nodes, missingListNames } = await listTauriMegaloTree(
         rootPath,
         objectListNames
-      ));
-    } catch (error) {
-      if (localRootPathRef.current !== rootPath) {
-        return;
-      }
-      setRootError(translateDiskError(error));
-      setLocalTree([]);
-      onMissingObjectListNamesChange?.([]);
-      return;
-    }
-    if (localRootPathRef.current !== rootPath) {
-      return;
-    }
-    setRootError(null);
-    try {
-      setLocalTree(tree);
-      onMissingObjectListNamesChange?.(missingListNames);
-      if (objectListsFolderIsEmpty(tree)) {
-        setEnsureExpandedKeys((keys) =>
-          keys.includes("object_lists") ? keys : [...keys, "object_lists"]
-        );
-      }
-      const lists = await loadWorkspaceObjectLists(rootPath, objectListNames);
-      if (localRootPathRef.current !== rootPath) {
-        return;
-      }
-      const listsJson = JSON.stringify(lists);
-      if (listsJson !== lastObjectListsJsonRef.current) {
-        lastObjectListsJsonRef.current = listsJson;
-        onWorkspaceObjectListsChange?.(lists);
-      }
-    } catch (error) {
-      if (localRootPathRef.current !== rootPath) {
-        return;
-      }
-      setLocalError(translateDiskError(error));
-      setLocalTree([]);
-      onMissingObjectListNamesChange?.([]);
-    }
-  }, [
-    objectListNames,
-    onMissingObjectListNamesChange,
-    onWorkspaceObjectListsChange,
-  ]);
-
-  useEffect(() => {
-    setLocalTree([]);
-    setLocalError(null);
-    setRootError(null);
-    setEnsureExpandedKeys([]);
-    lastObjectListsJsonRef.current = "";
-    if (!localRootPath) {
-      onWorkspaceObjectListsChange?.(null);
-      onMissingObjectListNamesChange?.([]);
-    }
-  }, [
-    localRootPath,
-    onMissingObjectListNamesChange,
-    onWorkspaceObjectListsChange,
-  ]);
-
-  useEffect(() => {
-    void refreshLocal();
-  }, [refreshLocal, localDiskRevision, localRootPath]);
-
-  useEffect(() => {
-    if (!(tauriAvailable && localRoot)) {
-      return;
-    }
-
-    let disposed = false;
-    let unwatch: (() => void) | null = null;
-
-    void (async () => {
+      );
       try {
-        const stop = await watchWorkspaceInput(localRoot.path, () => {
-          void refreshLocal();
-        });
-        unwatch = stop;
-        if (disposed) {
-          unwatch?.();
-          unwatch = null;
-        }
+        return {
+          missingListNames,
+          objectLists: await loadWorkspaceObjectLists(
+            rootPath,
+            objectListNames
+          ),
+          objectListsError: null,
+          tree: nodes,
+        };
       } catch (error) {
-        console.error("Failed to watch workspace input folder:", error);
+        return {
+          missingListNames,
+          objectLists: null,
+          objectListsError: translateDiskError(error),
+          tree: nodes,
+        };
       }
-    })();
+    },
+    path: localRootPath,
+    // Object list names decide which list files count as missing.
+    refreshKey: `${localDiskRevision}:${objectListNames.join(",")}`,
+    watch: tauriAvailable,
+  });
 
-    return () => {
-      disposed = true;
-      unwatch?.();
-      unwatch = null;
-    };
-  }, [tauriAvailable, localRoot, refreshLocal]);
+  const publish = useEffectEvent((data: WorkspaceListing) => {
+    onMissingObjectListNamesChange?.(data.missingListNames);
+    const listsJson = JSON.stringify(data.objectLists);
+    if (listsJson !== lastObjectListsJsonRef.current) {
+      lastObjectListsJsonRef.current = listsJson;
+      onWorkspaceObjectListsChange?.(data.objectLists);
+    }
+    if (objectListsFolderIsEmpty(data.tree)) {
+      setEnsureExpandedKeys((keys) =>
+        keys.includes("object_lists") ? keys : [...keys, "object_lists"]
+      );
+    }
+  });
+
+  // Push each new listing to the compiler (object lists) and the tray.
+  useEffect(() => {
+    publish(listing.data);
+  }, [listing.data]);
 
   return {
     ensureExpandedKeys,
-    localDiskAvailable,
-    localError,
-    localTree,
-    refreshLocal,
-    rootError,
+    localDiskAvailable: tauriAvailable,
+    localError:
+      localError ?? listing.data.objectListsError ?? listing.watchError,
+    localTree: listing.data.tree,
+    refreshLocal: listing.refresh,
+    rootError: listing.listError,
     setEnsureExpandedKeys,
     setLocalError,
     tauriAvailable,

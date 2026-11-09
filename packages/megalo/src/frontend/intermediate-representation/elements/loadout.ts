@@ -159,8 +159,17 @@ export const loadoutLowerer = (
     assertNotErrorNode(name);
     // Megalo Headache #1
     if (!ctx.loadoutsByName.has(name.value)) {
+      // Like MegaloEdit, every declared loadout counts, used or not.
+      const limit = ctx.frontend.versionConfiguration.limits.loadouts;
+      const { loadouts } = ctx.ir.gameVariant.gameEngine;
+      if (loadouts.length >= limit) {
+        throw new LowerError(
+          diagnosticMessages.tooManyLoadouts(limit),
+          name.location
+        );
+      }
       ctx.loadoutsByName.set(name.value, traits);
-      ctx.ir.gameVariant.gameEngine.loadouts.push(traits);
+      loadouts.push(traits);
     }
   });
 };

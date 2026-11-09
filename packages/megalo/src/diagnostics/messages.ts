@@ -269,6 +269,18 @@ export const diagnosticMessages = {
     return translate("too_many_game_statistics");
   },
 
+  tooManyLoadoutPalettes(limit: number): string {
+    return translate("too_many_loadout_palettes", { limit: String(limit) });
+  },
+
+  tooManyLoadouts(limit: number): string {
+    return translate("too_many_loadouts", { limit: String(limit) });
+  },
+
+  tooManyPlayerTraits(limit: number): string {
+    return translate("too_many_player_traits", { limit: String(limit) });
+  },
+
   objectTypeIndexOutOfRange(index: number, max: number): string {
     return translate("object_type_index_out_of_range", {
       index: String(index),

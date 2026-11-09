@@ -4,10 +4,11 @@ import {
   MEGALO_VERSIONS,
   type MegaloVersionId,
 } from "@megacrow/megalo";
-import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { gameIconSrc } from "../gametype/gametypeIcons";
 import { useT } from "../localization";
-import { usePopoverPosition } from "../ui/usePopoverPosition";
+import { ChevronDownIcon } from "../ui/icons";
+import { usePopover } from "../ui/usePopover";
 
 const PANEL_WIDTH = 340;
 
@@ -20,10 +21,6 @@ interface Props {
   megaloVersion: MegaloVersionId;
   onSelectVersion: (version: MegaloVersionId) => void;
   versions?: readonly MegaloVersionId[];
-}
-
-function gameIconSrc(_version: MegaloVersionId): string {
-  return `${import.meta.env.BASE_URL}img/icons/game-reach.png`;
 }
 
 function VersionSummary({
@@ -75,39 +72,8 @@ export function MegaloVersionMenu({
   versions = BROWSER_MEGALO_VERSIONS,
 }: Props) {
   const t = useT();
-  const [open, setOpen] = useState(false);
-  const { panelPos, panelRef, rootRef, triggerRef, updatePanelPosition } =
-    usePopoverPosition(open, { panelWidth: PANEL_WIDTH });
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    const onPointerDown = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (
-        rootRef.current?.contains(target) ||
-        panelRef.current?.contains(target)
-      ) {
-        return;
-      }
-      setOpen(false);
-    };
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    };
-
-    window.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open, updatePanelPosition]);
+  const popover = usePopover({ kind: "menu", panelWidth: PANEL_WIDTH });
+  const { open, panelPos, panelRef, rootRef, triggerRef } = popover;
 
   return (
     <div className="workspace-menu" ref={rootRef}>
@@ -115,26 +81,13 @@ export function MegaloVersionMenu({
         aria-expanded={open}
         aria-haspopup="menu"
         className="workspace-menu-trigger"
-        onClick={() => setOpen((value) => !value)}
+        onClick={popover.toggle}
         ref={triggerRef}
         title={t("megalo_version_select_title")}
         type="button"
       >
         <VersionSummary id={megaloVersion} layout="trigger" />
-        <svg
-          aria-hidden="true"
-          className="workspace-menu-chevron"
-          viewBox="0 0 12 12"
-        >
-          <path
-            d="M3 4.5 6 8l3-3.5"
-            fill="none"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="1.4"
-          />
-        </svg>
+        <ChevronDownIcon className="workspace-menu-chevron" />
       </button>
 
       {open
@@ -142,6 +95,7 @@ export function MegaloVersionMenu({
             <div
               aria-label={t("megalo_version_aria_label")}
               className="workspace-menu-panel"
+              onKeyDown={popover.onPanelKeyDown}
               ref={panelRef}
               role="menu"
               style={{
@@ -156,21 +110,23 @@ export function MegaloVersionMenu({
                     <span>{t("megalo_version_title")}</span>
                   </span>
                 </div>
-                <ul className="workspace-menu-list">
+                <ul className="workspace-menu-list" role="none">
                   {versions.map((id) => {
                     const selected = megaloVersion === id;
                     return (
                       <li
                         className={`workspace-menu-row${selected ? " workspace-menu-row--active" : ""}`}
                         key={id}
+                        role="none"
                       >
                         <button
+                          aria-checked={selected}
                           className={`workspace-menu-item${selected ? " workspace-menu-item--active" : ""}`}
                           onClick={() => {
                             onSelectVersion(id);
-                            setOpen(false);
+                            popover.close();
                           }}
-                          role="menuitem"
+                          role="menuitemradio"
                           type="button"
                         >
                           {selected ? (

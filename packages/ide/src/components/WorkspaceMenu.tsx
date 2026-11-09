@@ -1,9 +1,10 @@
 import type { MegaloVersionId } from "@megacrow/megalo";
-import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { getVersionInfo } from "../compile";
+import { gameIconSrc } from "../gametype/gametypeIcons";
 import { useT } from "../localization";
-import { usePopoverPosition } from "../ui/usePopoverPosition";
+import { ChevronDownIcon } from "../ui/icons";
+import { usePopover } from "../ui/usePopover";
 import type { StoredWorkspace, Workspace } from "../workspace";
 import { DOCS_PATHS, DocsHelpButton } from "./DocsHelpButton";
 
@@ -19,9 +20,6 @@ interface Props {
 }
 
 /** Reach is the only supported game/version today. */
-function gameIconSrc(_version: MegaloVersionId): string {
-  return `${import.meta.env.BASE_URL}img/icons/game-reach.png`;
-}
 
 function WorkspaceVersionLabel({
   name,
@@ -85,47 +83,16 @@ export function WorkspaceMenu({
   onDeleteWorkspace,
 }: Props) {
   const t = useT();
-  const [open, setOpen] = useState(false);
-  const { panelPos, panelRef, rootRef, triggerRef, updatePanelPosition } =
-    usePopoverPosition(open, { panelWidth: PANEL_WIDTH });
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    const onPointerDown = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (
-        rootRef.current?.contains(target) ||
-        panelRef.current?.contains(target)
-      ) {
-        return;
-      }
-      setOpen(false);
-    };
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    };
-
-    window.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open, updatePanelPosition]);
+  const popover = usePopover({ kind: "panel", panelWidth: PANEL_WIDTH });
+  const { open, panelPos, panelRef, rootRef, triggerRef } = popover;
 
   return (
     <div className="workspace-menu" ref={rootRef}>
       <button
         aria-expanded={open}
-        aria-haspopup="menu"
+        aria-haspopup="dialog"
         className="workspace-menu-trigger"
-        onClick={() => setOpen((value) => !value)}
+        onClick={popover.toggle}
         ref={triggerRef}
         title={workspace?.inputPath ?? t("workspace_select_title")}
         type="button"
@@ -140,20 +107,7 @@ export function WorkspaceMenu({
             t("workspace_no_workspace")
           )}
         </span>
-        <svg
-          aria-hidden="true"
-          className="workspace-menu-chevron"
-          viewBox="0 0 12 12"
-        >
-          <path
-            d="M3 4.5 6 8l3-3.5"
-            fill="none"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="1.4"
-          />
-        </svg>
+        <ChevronDownIcon className="workspace-menu-chevron" />
       </button>
 
       {open
@@ -162,7 +116,7 @@ export function WorkspaceMenu({
               aria-label={t("workspace_aria_label")}
               className="workspace-menu-panel"
               ref={panelRef}
-              role="menu"
+              role="dialog"
               style={{
                 top: panelPos.top,
                 left: panelPos.left,
@@ -211,13 +165,12 @@ export function WorkspaceMenu({
                           key={entry.id}
                         >
                           <button
-                            aria-checked={active}
+                            aria-pressed={active}
                             className={`workspace-menu-item${active ? " workspace-menu-item--active" : ""}`}
                             onClick={() => {
-                              setOpen(false);
+                              popover.close();
                               onSelectWorkspace(entry.id);
                             }}
-                            role="menuitemradio"
                             title={entry.inputPath}
                             type="button"
                           >
@@ -250,7 +203,7 @@ export function WorkspaceMenu({
                               })}
                               className="workspace-menu-item-action"
                               onClick={() => {
-                                setOpen(false);
+                                popover.close();
                                 onEditWorkspace(entry);
                               }}
                               title={t("workspace_edit_named", {
@@ -266,7 +219,7 @@ export function WorkspaceMenu({
                               })}
                               className="workspace-menu-item-action workspace-menu-item-action--danger"
                               onClick={() => {
-                                setOpen(false);
+                                popover.close();
                                 onDeleteWorkspace(entry.id);
                               }}
                               title={t("workspace_delete_named", {
@@ -286,10 +239,9 @@ export function WorkspaceMenu({
               <button
                 className="workspace-menu-add"
                 onClick={() => {
-                  setOpen(false);
+                  popover.close();
                   onAddWorkspace();
                 }}
-                role="menuitem"
                 type="button"
               >
                 {t("workspace_add")}

@@ -42,6 +42,23 @@ fn set_discord_presence_enabled(
   Ok(())
 }
 
+/// Open the web inspector for the calling window. Only debug builds ship
+/// devtools; the toolbar shows the button only there, and release builds
+/// report an error instead of doing nothing silently.
+#[tauri::command]
+fn open_devtools(window: tauri::WebviewWindow) -> Result<(), String> {
+  #[cfg(debug_assertions)]
+  {
+    window.open_devtools();
+    Ok(())
+  }
+  #[cfg(not(debug_assertions))]
+  {
+    let _ = window;
+    Err("DevTools are only available in debug builds".into())
+  }
+}
+
 #[tauri::command]
 fn get_discord_username(discord: tauri::State<DiscordRpc>) -> Option<String> {
   discord.username()
@@ -154,6 +171,7 @@ pub fn run() {
       update_discord_presence,
       set_discord_presence_enabled,
       get_discord_username,
+      open_devtools,
       detect_mcc_install,
       launch_mcc,
       launch_game_command,

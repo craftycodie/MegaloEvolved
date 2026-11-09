@@ -24,7 +24,7 @@ import {
   renameOpfsGametype,
 } from "../../files";
 import { isObjectListsPath } from "../../gametype";
-import { useT } from "../../localization";
+import { translateDiskError, useT } from "../../localization";
 import {
   defaultObjectListText,
   findLocalDiskNode,
@@ -32,10 +32,6 @@ import {
 } from "../../workspace";
 import type { FilesContextMenuState } from "./useFilesPanelContextMenu";
 import { useOpfsFiles } from "./useOpfsFiles";
-
-interface PendingOpfsDelete {
-  name: string;
-}
 
 interface Options {
   megaloVersion: MegaloVersionId;
@@ -72,9 +68,6 @@ export function useOpfsFileOps({
   const { opfsAvailable, opfsError, opfsFiles, refreshOpfs, setOpfsError } =
     useOpfsFiles(opfsRevision);
   const [dragActive, setDragActive] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState<PendingOpfsDelete | null>(
-    null
-  );
 
   const browserTree = useMemo(() => {
     if (!opfsAvailable) {
@@ -118,7 +111,7 @@ export function useOpfsFileOps({
         const source = (await readOpfsGametypeSource(name)) ?? "";
         onOpenSource(source, name);
       } catch (error) {
-        setOpfsError(String(error));
+        setOpfsError(translateDiskError(error));
       }
     },
     [onOpenSource, setOpfsError]
@@ -159,7 +152,7 @@ export function useOpfsFileOps({
         }
         setOpfsError(t("files_unsupported_file_type", { name: file.name }));
       } catch (error) {
-        setOpfsError(String(error));
+        setOpfsError(translateDiskError(error));
       }
     },
     [onOpenSource, rejectBrowserMegaloSource, setOpfsError, t]
@@ -185,7 +178,7 @@ export function useOpfsFileOps({
       const source = (await readOpfsGametypeSource(name)) ?? "";
       onOpenSource(source, name);
     } catch (error) {
-      setOpfsError(String(error));
+      setOpfsError(translateDiskError(error));
     }
   }, [onOpenSource, refreshOpfs, setOpfsError, setRenamingPathKey]);
 
@@ -204,7 +197,7 @@ export function useOpfsFileOps({
           onFileRenamed(fromName, toName, opfsGametypeLogicalPath(toName));
         }
       } catch (error) {
-        setOpfsError(String(error));
+        setOpfsError(translateDiskError(error));
         setRenamingPathKey(null);
       }
     },
@@ -220,28 +213,11 @@ export function useOpfsFileOps({
         await refreshOpfs();
         onFileDeleted(name);
       } catch (error) {
-        setOpfsError(String(error));
+        setOpfsError(translateDiskError(error));
       }
     },
     [onFileDeleted, refreshOpfs, setOpfsError, setRenamingPathKey]
   );
-
-  const requestDelete = useCallback((name: string) => {
-    setPendingDelete({ name });
-  }, []);
-
-  const confirmDelete = useCallback(() => {
-    if (!pendingDelete) {
-      return;
-    }
-    const { name } = pendingDelete;
-    setPendingDelete(null);
-    void deleteOpfsFile(name);
-  }, [deleteOpfsFile, pendingDelete]);
-
-  const cancelDelete = useCallback(() => {
-    setPendingDelete(null);
-  }, []);
 
   const copyOpfsPath = useCallback(
     async (name: string) => {
@@ -249,7 +225,7 @@ export function useOpfsFileOps({
         setOpfsError(null);
         await writeClipboardText(opfsGametypeLogicalPath(name));
       } catch (error) {
-        setOpfsError(String(error));
+        setOpfsError(translateDiskError(error));
       }
     },
     [setOpfsError]
@@ -266,7 +242,7 @@ export function useOpfsFileOps({
         await refreshOpfs();
         await openOpfsFile(name);
       } catch (error) {
-        setOpfsError(String(error));
+        setOpfsError(translateDiskError(error));
       }
     },
     [openOpfsFile, refreshOpfs, setOpfsError]
@@ -285,16 +261,11 @@ export function useOpfsFileOps({
     []
   );
 
-  const resetOnRootChange = useCallback(() => {
-    setPendingDelete(null);
-  }, []);
-
   return {
     browserTree,
-    cancelDelete,
     commitOpfsRename,
-    confirmDelete,
     copyOpfsPath,
+    deleteOpfsFile,
     createOpfsFile,
     dragActive,
     handleDroppedFiles,
@@ -304,9 +275,6 @@ export function useOpfsFileOps({
     opfsError,
     opfsFiles,
     pasteOpfsFile,
-    pendingDelete,
-    requestDelete,
-    resetOnRootChange,
     setDragActive,
     setOpfsError,
   };

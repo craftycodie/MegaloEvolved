@@ -1,4 +1,3 @@
-import type { Monaco } from "@monaco-editor/react";
 import cloudsMidnight from "@monaco-themes/Clouds Midnight.json";
 import cobalt2 from "@monaco-themes/Cobalt2.json";
 import dracula from "@monaco-themes/Dracula.json";
@@ -12,6 +11,9 @@ import solarizedDark from "@monaco-themes/Solarized-dark.json";
 import solarizedLight from "@monaco-themes/Solarized-light.json";
 import tomorrowNight from "@monaco-themes/Tomorrow-Night.json";
 import twilight from "@monaco-themes/Twilight.json";
+import type * as MonacoApi from "monaco-editor";
+import { APP_NAME } from "../app/constants";
+import type { Monaco } from "../editor/monacoTypes";
 import megacrowDark from "./themes/megacrow-dark.json";
 import vsDark from "./themes/vs-dark.json";
 
@@ -21,7 +23,7 @@ interface ThemeRule {
   token: string;
 }
 
-type MonacoThemeData = Monaco["editor"]["IStandaloneThemeData"];
+type MonacoThemeData = MonacoApi.editor.IStandaloneThemeData;
 
 const FALLBACK_FG = "D4D4D4";
 
@@ -59,7 +61,7 @@ export interface EditorThemeOption {
 export const EDITOR_THEME_OPTIONS: EditorThemeOption[] = [
   {
     id: "megacrow-dark",
-    label: "MegaloEvolved Dark",
+    label: `${APP_NAME} Dark`,
     data: megacrowDark as MonacoThemeData,
   },
   { id: "vs-dark", label: "VS Dark", data: vsDark as MonacoThemeData },

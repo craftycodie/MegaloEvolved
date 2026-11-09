@@ -27,19 +27,27 @@ function basename(filePath: string): string {
   return parts.at(-1) || filePath;
 }
 
-function displayNameFor(
+/** Path relative to the workspace input folder, else the file name. */
+export function workspaceDisplayName(
   absoluteFilePath: string,
-  workspace: Workspace | null
+  inputPath: string | null | undefined
 ): string {
   const normalized = normalizeLogicalPath(absoluteFilePath);
-  if (workspace?.inputPath) {
-    const root = normalizeLogicalPath(workspace.inputPath).replace(/\/+$/, "");
+  if (inputPath) {
+    const root = normalizeLogicalPath(inputPath).replace(/\/+$/, "");
     const prefix = `${root}/`;
     if (normalized.toLowerCase().startsWith(prefix.toLowerCase())) {
       return normalized.slice(prefix.length);
     }
   }
   return basename(absoluteFilePath);
+}
+
+function displayNameFor(
+  absoluteFilePath: string,
+  workspace: Workspace | null
+): string {
+  return workspaceDisplayName(absoluteFilePath, workspace?.inputPath);
 }
 
 function searchDirs(

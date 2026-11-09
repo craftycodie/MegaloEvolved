@@ -5,12 +5,8 @@ import type {
 } from "@megacrow/lsp/protocol";
 import { createPlatformFileProvider } from "../files/fileProvider";
 import { listPathDirectoryEntries } from "../files/listPathDirectory";
-import { getActiveWorkspace } from "../workspace/workspace";
-import {
-  getActiveFilePath,
-  getConfiguredWorkspace,
-  getWorkspaceForResolve,
-} from "./state";
+import { getActiveWorkspace } from "../stores/settingsStore";
+import { getActiveFilePath, isPlaceholderDocumentUri } from "./state";
 
 export type ResolveIncludeParams = MegacrowResolveIncludeParams;
 export type ResolveIncludeResult =
@@ -43,11 +39,7 @@ function parentDirectory(filePath: string): string {
 }
 
 function uriToPath(uri: string | undefined): string | null {
-  if (
-    !uri ||
-    uri === "file:///megalo/editor.megalo" ||
-    uri.startsWith("file:///megalo/")
-  ) {
+  if (!uri || isPlaceholderDocumentUri(uri)) {
     return null;
   }
   if (uri.startsWith("file:///")) {
@@ -93,7 +85,7 @@ function resolveSearchDirs(fromUri: string | undefined): string[] {
   if (activeFilePath) {
     add(parentDirectory(activeFilePath));
   }
-  const workspace = getWorkspaceForResolve();
+  const workspace = getActiveWorkspace();
   add(workspace?.outputPath);
   add(workspace?.inputPath);
 
@@ -103,7 +95,7 @@ function resolveSearchDirs(fromUri: string | undefined): string[] {
 export async function handleResolveInclude(
   params: ResolveIncludeParams
 ): Promise<ResolveIncludeResult> {
-  const workspace = getConfiguredWorkspace() ?? getActiveWorkspace();
+  const workspace = getActiveWorkspace();
   const fileProvider = createPlatformFileProvider(workspace);
   if (!fileProvider) {
     return { error: "No file provider available for include resolution" };
@@ -126,7 +118,7 @@ export async function handleResolveInclude(
 export async function handleResolveBaseFile(
   params: ResolveBaseFileParams
 ): Promise<ResolveBaseFileResult> {
-  const workspace = getConfiguredWorkspace() ?? getActiveWorkspace();
+  const workspace = getActiveWorkspace();
   if (!workspace?.outputPath?.trim()) {
     return {
       error: "Base file resolution disabled (no workspace output folder)",
@@ -156,7 +148,7 @@ export async function handleResolveBaseFile(
 export async function handleListDirectory(
   params: ListDirectoryParams
 ): Promise<ListDirectoryResult> {
-  const workspace = getConfiguredWorkspace() ?? getActiveWorkspace();
+  const workspace = getActiveWorkspace();
   const fileProvider = createPlatformFileProvider(workspace);
   if (!fileProvider) {
     return { error: "No file provider available for path completion" };

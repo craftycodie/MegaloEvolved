@@ -5,6 +5,7 @@ import {
   listOpfsGametypes,
   type OpfsGametypeEntry,
 } from "../../files";
+import { translateDiskError } from "../../localization";
 
 export function useOpfsFiles(opfsRevision: number) {
   const opfsAvailable = isOpfsSupported() && !isTauriRuntime();
@@ -20,11 +21,12 @@ export function useOpfsFiles(opfsRevision: number) {
       setOpfsError(null);
       setOpfsFiles(await listOpfsGametypes());
     } catch (error) {
-      setOpfsError(String(error));
+      setOpfsError(translateDiskError(error));
       setOpfsFiles([]);
     }
   }, [opfsAvailable]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `opfsRevision` is the re-list signal (bumped after writes); its value is not read.
   useEffect(() => {
     void refreshOpfs();
   }, [refreshOpfs, opfsRevision]);

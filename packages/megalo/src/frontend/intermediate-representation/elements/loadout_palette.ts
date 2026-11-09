@@ -36,8 +36,19 @@ export const loadoutPaletteLowerer = (
 
     // Megalo Headache #1
     if (!ctx.loadoutPalettesByName.has(paletteName)) {
+      // MegaloEdit counts every declared palette, used or not, and refuses
+      // to compile past the limit ("Too many megalo-defined loadout
+      // palettes"); report it on the first palette over the limit.
+      const limit = ctx.frontend.versionConfiguration.limits.loadoutPalettes;
+      const { loadoutPalettes } = ctx.ir.gameVariant.gameEngine;
+      if (loadoutPalettes.length >= limit) {
+        throw new LowerError(
+          diagnosticMessages.tooManyLoadoutPalettes(limit),
+          element.name.location
+        );
+      }
       ctx.loadoutPalettesByName.set(paletteName, palette);
-      ctx.ir.gameVariant.gameEngine.loadoutPalettes.push(palette);
+      loadoutPalettes.push(palette);
     }
   });
 };

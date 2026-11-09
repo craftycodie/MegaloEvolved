@@ -2,19 +2,23 @@ import {
   createContext,
   createElement,
   type ReactNode,
-  useCallback,
   useContext,
-  useEffect,
   useMemo,
-  useState,
 } from "react";
 import rosetta from "rosetta";
+import { FsError, type FsErrorCode } from "../files/fsErrors";
 import en from "./locales/en.json";
 import ja from "./locales/ja.json";
 
 export type IdeLocale = "en" | "ja";
 
-export const IDE_LOCALES: IdeLocale[] = ["en", "ja"];
+export const IDE_LOCALES: readonly IdeLocale[] = ["en", "ja"];
+
+/** Each language's own name, shown untranslated in the language picker. */
+export const IDE_LOCALE_NAMES: Record<IdeLocale, string> = {
+  en: "English",
+  ja: "日本語",
+};
 
 type LocaleCatalog = typeof en;
 
@@ -29,30 +33,61 @@ export const setIdeLocale = (locale: IdeLocale): void => {
   i18n.locale(locale);
 };
 
+export type TranslateParams = Record<string, string | number>;
+
 export const translate = (
   key: IdeMessageKey,
-  params?: Record<string, string | number>
+  params?: TranslateParams
 ): string => i18n.t(key, params);
 
-export const failedToCompileStatus = (errorCount: number): string => {
-  const count = Math.max(errorCount, 1);
-  return translate(
-    count === 1
-      ? "status_failed_to_compile_one"
-      : "status_failed_to_compile_other",
-    { count }
+export type Translate = typeof translate;
+
+/** Message keys that exist as a `_one` / `_other` pair. */
+export type IdePluralKey = {
+  [K in IdeMessageKey]: K extends `${infer Base}_one`
+    ? `${Base}_other` extends IdeMessageKey
+      ? Base
+      : never
+    : never;
+}[IdeMessageKey];
+
+const pluralRulesCache = new Map<string, Intl.PluralRules>();
+
+function pluralSuffix(locale: string, count: number): "one" | "other" {
+  let rules = pluralRulesCache.get(locale);
+  if (!rules) {
+    rules = new Intl.PluralRules(locale);
+    pluralRulesCache.set(locale, rules);
+  }
+  return rules.select(count) === "one" ? "one" : "other";
+}
+
+/** `base_one` or `base_other` for `count`; `count` is also passed as a param. */
+export const translatePlural = (
+  base: IdePluralKey,
+  count: number,
+  params?: TranslateParams,
+  locale: IdeLocale = getIdeLocale()
+): string =>
+  i18n.t(
+    `${base}_${pluralSuffix(locale, count)}`,
+    { count, ...params },
+    locale
   );
-};
+
+export const failedToCompileStatus = (errorCount: number): string =>
+  translatePlural("status_failed_to_compile", Math.max(errorCount, 1));
 
 const DISK_ERROR_KEYS = {
-  "Cannot rename the workspace root": "disk_error_rename_root",
-  "Invalid folder name": "disk_error_invalid_folder_name",
-  "Invalid file name": "disk_error_invalid_file_name",
-  "Cannot move the workspace root": "disk_error_move_root",
-  "Cannot move a folder into itself": "disk_error_move_into_self",
-  "Cannot delete the workspace root": "disk_error_delete_root",
-  "Cannot duplicate the workspace root": "disk_error_duplicate_root",
-} as const satisfies Record<string, IdeMessageKey>;
+  delete_root: "disk_error_delete_root",
+  duplicate_root: "disk_error_duplicate_root",
+  invalid_file_name: "disk_error_invalid_file_name",
+  invalid_folder_name: "disk_error_invalid_folder_name",
+  move_into_self: "disk_error_move_into_self",
+  move_onto_ancestor: "disk_error_move_onto_ancestor",
+  move_root: "disk_error_move_root",
+  rename_root: "disk_error_rename_root",
+} as const satisfies Record<FsErrorCode, IdeMessageKey>;
 
 const LAUNCH_ERROR_KEYS = {
   "Launching Halo MCC is only available in the desktop app":
@@ -61,10 +96,12 @@ const LAUNCH_ERROR_KEYS = {
     "launch_game_desktop_only",
 } as const satisfies Record<string, IdeMessageKey>;
 
+/** User-facing text for a failed file operation. */
 export const translateDiskError = (error: unknown): string => {
-  const message = error instanceof Error ? error.message : String(error);
-  const key = DISK_ERROR_KEYS[message as keyof typeof DISK_ERROR_KEYS];
-  return key ? translate(key) : message;
+  if (error instanceof FsError) {
+    return translate(DISK_ERROR_KEYS[error.code]);
+  }
+  return error instanceof Error ? error.message : String(error);
 };
 
 export const translateLaunchError = (error: unknown): string => {
@@ -73,10 +110,25 @@ export const translateLaunchError = (error: unknown): string => {
   return key ? translate(key) : message;
 };
 
-interface IdeLocaleContextValue {
+export interface IdeLocaleContextValue {
   locale: IdeLocale;
-  setLocale: (locale: IdeLocale) => void;
-  t: typeof translate;
+  /** Translate in this provider's locale; a new function per locale. */
+  t: Translate;
+  /** Plural form in this provider's locale. */
+  tPlural: (
+    base: IdePluralKey,
+    count: number,
+    params?: TranslateParams
+  ) => string;
+}
+
+function contextValueFor(locale: IdeLocale): IdeLocaleContextValue {
+  return {
+    locale,
+    t: (key, params) => i18n.t(key, params, locale),
+    tPlural: (base, count, params) =>
+      translatePlural(base, count, params, locale),
+  };
 }
 
 const IdeLocaleContext = createContext<IdeLocaleContextValue | null>(null);
@@ -88,43 +140,29 @@ export function IdeLocaleProvider({
   locale: IdeLocale;
   children: ReactNode;
 }) {
-  const [revision, setRevision] = useState(0);
-
-  useEffect(() => {
+  // Components translate through `t`, bound to `locale`. Code outside React
+  // (and memoized helpers that call `translate`) reads the global locale, so
+  // it is switched before children render, not in an effect one render late.
+  // Setting it is idempotent, so doing it during render is safe.
+  if (getIdeLocale() !== locale) {
     setIdeLocale(locale);
-    setRevision((n) => n + 1);
-  }, [locale]);
+  }
 
-  const setLocale = useCallback((next: IdeLocale) => {
-    setIdeLocale(next);
-    setRevision((n) => n + 1);
-  }, []);
-
-  const value = useMemo<IdeLocaleContextValue>(
-    () => ({
-      locale: getIdeLocale(),
-      setLocale,
-      t: translate,
-    }),
-    [locale, revision, setLocale]
-  );
-
+  const value = useMemo(() => contextValueFor(locale), [locale]);
   return createElement(IdeLocaleContext.Provider, { value }, children);
 }
 
 export function useIdeLocale(): IdeLocaleContextValue {
   const ctx = useContext(IdeLocaleContext);
-  if (!ctx) {
-    return {
-      locale: getIdeLocale(),
-      setLocale: setIdeLocale,
-      t: translate,
-    };
-  }
-  return ctx;
+  return ctx ?? contextValueFor(getIdeLocale());
 }
 
 /** Prefer this in React components so they re-render when locale changes. */
-export function useT(): typeof translate {
+export function useT(): Translate {
   return useIdeLocale().t;
+}
+
+/** Plural-aware translate for React components. */
+export function useTPlural(): IdeLocaleContextValue["tPlural"] {
+  return useIdeLocale().tPlural;
 }

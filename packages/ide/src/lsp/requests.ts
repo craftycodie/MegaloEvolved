@@ -9,12 +9,21 @@ import {
   type MegacrowVersionConfigurationParams,
 } from "@megacrow/lsp/protocol";
 import type { MegaloVersionId } from "@megacrow/megalo";
+import type { CancellationToken } from "vscode-jsonrpc";
 import type {
+  CompletionItem,
+  CompletionList,
   Diagnostic,
   DidChangeConfigurationParams,
+  Hover,
+  Location,
+  LocationLink,
+  Position,
+  Range,
+  SemanticTokens,
 } from "vscode-languageserver-protocol";
-import { getConnection, lspDocumentUri, lspSyncDocument } from "./connection";
-import { getLspConfig, setLspConfig } from "./state";
+import { getConnection, lspSyncDocument } from "./connection";
+import { getActiveDocumentUri, getLspConfig, setLspConfig } from "./state";
 
 function decodeBase64(dataBase64: string): Uint8Array {
   const binary = atob(dataBase64);
@@ -27,71 +36,51 @@ function decodeBase64(dataBase64: string): Uint8Array {
 
 export type { MegacrowArtifactKind };
 
-export interface MegacrowCompileResult {
-  dataBase64?: string;
-  diagnostics: Diagnostic[];
-  error?: string;
-  limitUsage?: import("@megacrow/megalo").VariantLimitUsage;
-  metadata?: import("@megacrow/megalo").CompiledMegaloMetadata;
-  ok: boolean;
-  variantByteLength?: number;
+/** Which document a request is about, and how to cancel it. */
+export interface LspRequestOptions {
+  /** Cancelled by Monaco when the result is no longer wanted. */
+  token?: CancellationToken;
+  /** Document URI; defaults to the active document. */
+  uri?: string;
 }
 
-export async function lspCompileSource(
+/** Sync `text` for the request's document, then return its URI. */
+async function syncForRequest(
   text: string,
-  fileType: "mglo" | "mpvr" | "gvar" = "mglo"
-): Promise<{
-  ok: boolean;
+  options: LspRequestOptions | undefined
+): Promise<string> {
+  const uri = options?.uri ?? getActiveDocumentUri();
+  await lspSyncDocument(text, uri);
+  return uri;
+}
+
+type MegacrowCompileMetadata = MegacrowRequestArtifactsResult["metadata"];
+type MegacrowLimitUsage = MegacrowRequestArtifactsResult["limitUsage"];
+
+export interface LspArtifactsResult {
   bytes?: Uint8Array;
   diagnostics: Diagnostic[];
   error?: string;
-  metadata?: MegacrowCompileResult["metadata"];
+  limitUsage?: MegacrowLimitUsage;
+  metadata?: MegacrowCompileMetadata;
+  ok?: boolean;
+  semanticTokens?: number[];
   variantByteLength?: number;
-  limitUsage?: MegacrowCompileResult["limitUsage"];
-}> {
-  const artifacts = await lspRequestArtifacts(text, ["diagnostics", fileType]);
-  if (!(artifacts.ok && artifacts.bytes)) {
-    return {
-      ok: false,
-      diagnostics: artifacts.diagnostics ?? [],
-      error: artifacts.error,
-    };
-  }
-  return {
-    ok: true,
-    bytes: artifacts.bytes,
-    diagnostics: artifacts.diagnostics ?? [],
-    metadata: artifacts.metadata,
-    variantByteLength: artifacts.variantByteLength,
-    limitUsage: artifacts.limitUsage,
-  };
+  version: number;
 }
 
 export async function lspRequestArtifacts(
   text: string,
-  artifacts: MegacrowArtifactKind[]
-): Promise<{
-  ok?: boolean;
-  bytes?: Uint8Array;
-  diagnostics: Diagnostic[];
-  error?: string;
-  metadata?: MegacrowCompileResult["metadata"];
-  semanticTokens?: number[];
-  version: number;
-  variantByteLength?: number;
-  limitUsage?: MegacrowCompileResult["limitUsage"];
-}> {
+  artifacts: MegacrowArtifactKind[],
+  options?: LspRequestOptions
+): Promise<LspArtifactsResult> {
   const connection = await getConnection();
-  await lspSyncDocument(text);
-  const result = (await connection.sendRequest(
+  const uri = await syncForRequest(text, options);
+  const result = await connection.sendRequest<MegacrowRequestArtifactsResult>(
     MEGACROW_REQUEST_ARTIFACTS_METHOD,
-    {
-      textDocument: { uri: lspDocumentUri() },
-      text,
-      artifacts,
-    }
-  )) as MegacrowRequestArtifactsResult;
-
+    { textDocument: { uri }, text, artifacts },
+    options?.token
+  );
   return {
     ok: result.ok,
     bytes: result.dataBase64 ? decodeBase64(result.dataBase64) : undefined,
@@ -105,153 +94,113 @@ export async function lspRequestArtifacts(
   };
 }
 
-export async function lspSemanticTokens(text: string): Promise<number[]> {
+export async function lspCompileSource(
+  text: string,
+  fileType: "mglo" | "mpvr" | "gvar" = "mglo",
+  options?: LspRequestOptions
+): Promise<LspArtifactsResult & { ok: boolean }> {
+  const artifacts = await lspRequestArtifacts(
+    text,
+    ["diagnostics", fileType],
+    options
+  );
+  if (!(artifacts.ok && artifacts.bytes)) {
+    return {
+      ok: false,
+      diagnostics: artifacts.diagnostics,
+      error: artifacts.error,
+      version: artifacts.version,
+    };
+  }
+  return { ...artifacts, ok: true };
+}
+
+export async function lspSemanticTokens(
+  text: string,
+  options?: LspRequestOptions
+): Promise<number[]> {
   const connection = await getConnection();
-  await lspSyncDocument(text);
-  const result = (await connection.sendRequest(
+  const uri = await syncForRequest(text, options);
+  const result = await connection.sendRequest<SemanticTokens | null>(
     "textDocument/semanticTokens/full",
-    {
-      textDocument: { uri: lspDocumentUri() },
-    }
-  )) as { data?: number[] } | null;
+    { textDocument: { uri } },
+    options?.token
+  );
   return result?.data ?? [];
 }
 
 export async function lspHover(
   text: string,
-  position: { line: number; character: number }
-): Promise<{
-  contents: { kind: string; value: string } | string;
-  range?: {
-    start: { line: number; character: number };
-    end: { line: number; character: number };
-  };
-} | null> {
+  position: Position,
+  options?: LspRequestOptions
+): Promise<Hover | null> {
   const connection = await getConnection();
-  await lspSyncDocument(text);
-  return (await connection.sendRequest("textDocument/hover", {
-    textDocument: { uri: lspDocumentUri() },
-    position,
-  })) as {
-    contents: { kind: string; value: string } | string;
-    range?: {
-      start: { line: number; character: number };
-      end: { line: number; character: number };
-    };
-  } | null;
+  const uri = await syncForRequest(text, options);
+  return connection.sendRequest<Hover | null>(
+    "textDocument/hover",
+    { textDocument: { uri }, position },
+    options?.token
+  );
 }
 
 export interface LspDefinitionLocation {
-  range: {
-    start: { line: number; character: number };
-    end: { line: number; character: number };
-  };
+  range: Range;
   uri: string;
+}
+
+function asDefinitionLocation(
+  value: Location | LocationLink
+): LspDefinitionLocation {
+  if ("targetUri" in value) {
+    return {
+      uri: value.targetUri,
+      range: value.targetSelectionRange ?? value.targetRange,
+    };
+  }
+  return { uri: value.uri, range: value.range };
 }
 
 export async function lspDefinition(
   text: string,
-  position: { line: number; character: number }
+  position: Position,
+  options?: LspRequestOptions
 ): Promise<LspDefinitionLocation[]> {
   const connection = await getConnection();
-  await lspSyncDocument(text);
-  const result = await connection.sendRequest("textDocument/definition", {
-    textDocument: { uri: lspDocumentUri() },
-    position,
-  });
-
-  const asLocation = (value: unknown): LspDefinitionLocation | null => {
-    if (!(value && typeof value === "object")) {
-      return null;
-    }
-    const record = value as Record<string, unknown>;
-    if (
-      typeof record.uri === "string" &&
-      record.range &&
-      typeof record.range === "object"
-    ) {
-      const range = record.range as LspDefinitionLocation["range"];
-      return { uri: record.uri, range };
-    }
-    if (
-      typeof record.targetUri === "string" &&
-      record.targetSelectionRange &&
-      typeof record.targetSelectionRange === "object"
-    ) {
-      return {
-        uri: record.targetUri,
-        range: record.targetSelectionRange as LspDefinitionLocation["range"],
-      };
-    }
-    if (
-      typeof record.targetUri === "string" &&
-      record.targetRange &&
-      typeof record.targetRange === "object"
-    ) {
-      return {
-        uri: record.targetUri,
-        range: record.targetRange as LspDefinitionLocation["range"],
-      };
-    }
-    return null;
-  };
-
-  if (result === null || result === undefined) {
+  const uri = await syncForRequest(text, options);
+  const result = await connection.sendRequest<
+    Location | Location[] | LocationLink[] | null
+  >(
+    "textDocument/definition",
+    { textDocument: { uri }, position },
+    options?.token
+  );
+  if (!result) {
     return [];
   }
-  if (Array.isArray(result)) {
-    return result
-      .map(asLocation)
-      .filter(
-        (location): location is LspDefinitionLocation => location !== null
-      );
-  }
-  const single = asLocation(result);
-  return single ? [single] : [];
+  const list: (Location | LocationLink)[] = Array.isArray(result)
+    ? result
+    : [result];
+  return list.map(asDefinitionLocation);
 }
 
 export async function lspCompletions(
   text: string,
-  position: { line: number; character: number }
-): Promise<
-  Array<{
-    label: string;
-    kind?: number;
-    detail?: string;
-    documentation?: string | { kind: string; value: string };
-    filterText?: string;
-    insertText?: string;
-    insertTextFormat?: number;
-    command?: { title: string; command: string; arguments?: unknown[] };
-  }>
-> {
+  position: Position,
+  options?: LspRequestOptions
+): Promise<CompletionItem[]> {
   const connection = await getConnection();
-  await lspSyncDocument(text);
-  await Promise.resolve();
-  const result = await connection.sendRequest("textDocument/completion", {
-    textDocument: { uri: lspDocumentUri() },
-    position,
-  });
-  if (Array.isArray(result)) {
-    return result;
+  const uri = await syncForRequest(text, options);
+  const result = await connection.sendRequest<
+    CompletionItem[] | CompletionList | null
+  >(
+    "textDocument/completion",
+    { textDocument: { uri }, position },
+    options?.token
+  );
+  if (!result) {
+    return [];
   }
-  if (result && typeof result === "object" && "items" in result) {
-    return (
-      result as {
-        items: Array<{
-          label: string;
-          kind?: number;
-          detail?: string;
-          documentation?: string | { kind: string; value: string };
-          filterText?: string;
-          insertText?: string;
-          insertTextFormat?: number;
-          command?: { title: string; command: string; arguments?: unknown[] };
-        }>;
-      }
-    ).items;
-  }
-  return [];
+  return Array.isArray(result) ? result : result.items;
 }
 
 /** Object-list names for `megaloVersion` (default: the configured version). */
@@ -261,20 +210,20 @@ export async function lspVersionConfiguration(
   objectListNames: readonly string[];
 }> {
   const connection = await getConnection();
-  return (await connection.sendRequest(MEGACROW_VERSION_CONFIGURATION_METHOD, {
-    megaloVersion,
-  } satisfies MegacrowVersionConfigurationParams)) as {
-    objectListNames: readonly string[];
-  };
+  return connection.sendRequest<{ objectListNames: readonly string[] }>(
+    MEGACROW_VERSION_CONFIGURATION_METHOD,
+    { megaloVersion } satisfies MegacrowVersionConfigurationParams
+  );
 }
 
 export async function lspAnalyzeObjectList(text: string): Promise<{
   diagnostics: Diagnostic[];
 }> {
   const connection = await getConnection();
-  return (await connection.sendRequest(MEGACROW_ANALYZE_OBJECT_LIST_METHOD, {
-    text,
-  })) as { diagnostics: Diagnostic[] };
+  return connection.sendRequest<{ diagnostics: Diagnostic[] }>(
+    MEGACROW_ANALYZE_OBJECT_LIST_METHOD,
+    { text }
+  );
 }
 
 let lastSentConfig: string | null = null;

@@ -1,4 +1,5 @@
 import { resolveGameBuildNumber } from "@megacrow/megalo";
+import { DEFAULT_MEGALO_VERSION } from "../app/constants";
 import {
   autosaveQueueFileSizeForMegaloVersionId,
   compiledFileTypeForSaveFormat,
@@ -6,8 +7,14 @@ import {
   type GametypeSaveFormat,
 } from "../gametype/gametypeSaveFormat";
 import { failedToCompileStatus, translate } from "../localization";
+import {
+  lspCompileSource,
+  lspRequestArtifacts,
+  lspUpdateConfig,
+  preloadLspConnection,
+} from "../lsp";
 import type { Workspace } from "../workspace/workspace";
-import type { SourceAnalysis } from "./compileAnalysis";
+import { failedAnalysis, type SourceAnalysis } from "./compileAnalysis";
 import { megaloDiagnosticFromLsp } from "./diagnostics";
 import {
   formatMegaloCompileTiming,
@@ -33,28 +40,21 @@ function finalizeForCurrentVersion(
 
 /** Eagerly connect the LSP worker so first file open avoids cold-start latency. */
 export function preloadCompileClient(): void {
-  void import("../lsp/lspClient").then(({ preloadLspConnection }) => {
-    preloadLspConnection();
-  });
+  preloadLspConnection();
 }
 
 export function syncMegaloWorkspace(workspace: Workspace | null): void {
-  const megaloVersion = workspace?.megaloVersion ?? "107-mcc";
+  const megaloVersion = workspace?.megaloVersion ?? DEFAULT_MEGALO_VERSION;
   // The compiler has no default builds; the IDE picks one (or none = -1).
   const gameBuildNumber =
     resolveGameBuildNumber(megaloVersion, workspace?.gameBuildNumber) ?? null;
   setCompileMegaloVersion(megaloVersion);
   setCompileGameBuildNumber(gameBuildNumber);
-  void import("../lsp/lspClient").then(
-    ({ lspConfigureResolveContext, lspUpdateConfig }) => {
-      lspConfigureResolveContext({ workspace });
-      lspUpdateConfig({
-        gameBuildNumber,
-        megaloVersion,
-        resolveBaseFile: !!workspace?.outputPath?.trim(),
-      });
-    }
-  );
+  lspUpdateConfig({
+    gameBuildNumber,
+    megaloVersion,
+    resolveBaseFile: !!workspace?.outputPath?.trim(),
+  });
 }
 
 export function syncMegaloCompilerSettings(
@@ -67,8 +67,6 @@ const supersededSourceAnalysis = (): SourceAnalysis => ({
   compileState: "parsing",
   errorCount: 0,
   message: translate("status_compiling"),
-  byteIdentical: null,
-  byteDiffCount: null,
   compiledByteLength: null,
   mgloBytes: null,
   compileTiming: null,
@@ -76,22 +74,24 @@ const supersededSourceAnalysis = (): SourceAnalysis => ({
 });
 
 interface CompileJob {
-  reject: (reason: unknown) => void;
   resolve: (value: SourceAnalysis) => void;
   source: string;
+  uri: string | undefined;
 }
 
 let compilePending: CompileJob | null = null;
 let compileBusy = false;
 
-async function runCompileOnce(source: string): Promise<SourceAnalysis> {
-  const { lspRequestArtifacts } = await import("../lsp/lspClient");
+async function runCompileOnce(
+  source: string,
+  uri: string | undefined
+): Promise<SourceAnalysis> {
   const started = performance.now();
-  const result = await lspRequestArtifacts(source, [
-    "semanticTokens",
-    "diagnostics",
-    "mglo",
-  ]);
+  const result = await lspRequestArtifacts(
+    source,
+    ["semanticTokens", "diagnostics", "mglo"],
+    { uri }
+  );
   if (result.error === "superseded") {
     return supersededSourceAnalysis();
   }
@@ -104,8 +104,6 @@ async function runCompileOnce(source: string): Promise<SourceAnalysis> {
       compileState: "error",
       errorCount: Math.max(errorCount, 1),
       message: failedToCompileStatus(Math.max(errorCount, 1)),
-      byteIdentical: null,
-      byteDiffCount: null,
       compiledByteLength: null,
       mgloBytes: null,
       compileTiming: timing,
@@ -119,8 +117,6 @@ async function runCompileOnce(source: string): Promise<SourceAnalysis> {
       : "ok",
     errorCount: 0,
     message: formatMegaloCompileTiming(timing) || translate("status_compiled"),
-    byteIdentical: null,
-    byteDiffCount: null,
     compiledByteLength: result.variantByteLength ?? result.bytes.length,
     mgloBytes: result.bytes,
     compiledMetadata: result.metadata ?? null,
@@ -140,18 +136,17 @@ async function drainCompileQueue(): Promise<void> {
       const job = compilePending;
       compilePending = null;
       try {
-        const analysis = await runCompileOnce(job.source);
+        const analysis = await runCompileOnce(job.source, job.uri);
         if (compilePending) {
           job.resolve(supersededSourceAnalysis());
         } else {
           job.resolve(analysis);
         }
       } catch (error) {
-        if (compilePending) {
-          job.resolve(supersededSourceAnalysis());
-        } else {
-          job.reject(error);
-        }
+        // Never reject: callers would stay on "parsing" forever.
+        job.resolve(
+          compilePending ? supersededSourceAnalysis() : failedAnalysis(error)
+        );
       }
     }
   } finally {
@@ -162,12 +157,19 @@ async function drainCompileQueue(): Promise<void> {
   }
 }
 
-export function requestCompileViaLsp(source: string): Promise<SourceAnalysis> {
-  return new Promise((resolve, reject) => {
+/**
+ * Latest-wins compile of `source` as document `uri` (default: the active
+ * document). Always resolves; failures become an error analysis.
+ */
+export function requestCompileViaLsp(
+  source: string,
+  uri?: string
+): Promise<SourceAnalysis> {
+  return new Promise((resolve) => {
     if (compilePending) {
       compilePending.resolve(supersededSourceAnalysis());
     }
-    compilePending = { source, resolve, reject };
+    compilePending = { source, resolve, uri };
     void drainCompileQueue();
   });
 }
@@ -182,8 +184,6 @@ function compileDownloadFallback(): {
       compileState: "error",
       errorCount: 1,
       message: failedToCompileStatus(1),
-      byteIdentical: null,
-      byteDiffCount: null,
       compiledByteLength: null,
       mgloBytes: null,
       compileTiming: null,
@@ -194,14 +194,15 @@ function compileDownloadFallback(): {
 
 export async function requestCompileDownloadViaLsp(
   source: string,
-  format: GametypeSaveFormat
+  format: GametypeSaveFormat,
+  uri?: string
 ): Promise<{ output: Uint8Array | null; analysis: SourceAnalysis }> {
   try {
-    const { lspCompileSource } = await import("../lsp/lspClient");
     const started = performance.now();
     const result = await lspCompileSource(
       source,
-      compiledFileTypeForSaveFormat(format)
+      compiledFileTypeForSaveFormat(format),
+      { uri }
     );
     const totalMs = performance.now() - started;
     const timing = { parseMs: 0, compileMs: totalMs, totalMs };
@@ -218,8 +219,6 @@ export async function requestCompileDownloadViaLsp(
           compileState: "error",
           errorCount,
           message: failedToCompileStatus(errorCount),
-          byteIdentical: null,
-          byteDiffCount: null,
           compiledByteLength: null,
           mgloBytes: null,
           compileTiming: timing,
@@ -237,8 +236,6 @@ export async function requestCompileDownloadViaLsp(
           : "ok",
         errorCount: 0,
         message: formatMegaloCompileTiming(timing),
-        byteIdentical: null,
-        byteDiffCount: null,
         compiledByteLength:
           result.variantByteLength ??
           (format === "mglo" ? result.bytes.length : null),
@@ -249,7 +246,8 @@ export async function requestCompileDownloadViaLsp(
         limitUsage: result.limitUsage ?? null,
       },
     };
-  } catch {
+  } catch (error) {
+    console.error("Megalo export compile failed:", error);
     return compileDownloadFallback();
   }
 }

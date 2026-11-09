@@ -1,8 +1,9 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { docsPageUrl, isTauriRuntime, listenDocsNavigate } from "../desktop";
 import "./styles.css";
+import { APP_NAME } from "../app/constants";
 
-const DEFAULT_TITLE = "MegaloEvolved Docs";
+const DEFAULT_TITLE = `${APP_NAME} Docs`;
 
 const backBtn = document.querySelector<HTMLButtonElement>("#docs-back")!;
 const forwardBtn = document.querySelector<HTMLButtonElement>("#docs-forward")!;

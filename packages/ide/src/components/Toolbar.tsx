@@ -1,5 +1,6 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { type MouseEvent, useState } from "react";
+import { APP_NAME } from "../app/constants";
 import { GITHUB_LATEST_RELEASE_PAGE } from "../app/updateCheck";
 import {
   ipcOpenDevtools,
@@ -10,7 +11,14 @@ import {
 import { useMccLaunch } from "../desktop/useMccLaunch";
 import type { GametypeSaveFormat } from "../gametype";
 import { useT } from "../localization";
-import type { AppSettings, Workspace } from "../workspace";
+import {
+  navigateBack,
+  navigateForward,
+  selectCanNavigateBack,
+  selectCanNavigateForward,
+  useDocument,
+} from "../stores/documentStore";
+import { useSettings } from "../stores/settingsStore";
 import { AboutDialog } from "./dialogs/AboutDialog";
 import { SaveAsMenu } from "./SaveAsMenu";
 import { SettingsMenu } from "./SettingsMenu";
@@ -22,39 +30,28 @@ interface Props {
   canBuild: boolean;
   /** False for object lists and other non-compilable text. */
   canExport?: boolean;
-  canNavigateBack?: boolean;
-  canNavigateForward?: boolean;
   fileName: string | null;
   onBuild: () => void;
   onCompile: (format: GametypeSaveFormat) => void;
-  onNavigateBack?: () => void;
-  onNavigateForward?: () => void;
-  onSettingsChange: (patch: Partial<AppSettings>) => void;
   onShowMotd: () => void;
   onToggleSidebar: () => void;
-  settings: AppSettings;
   sidebarOpen: boolean;
-  workspace: Workspace | null;
 }
 
 export function Toolbar({
-  workspace,
   onBuild,
   onCompile,
   canBuild,
   fileName,
-  settings,
-  onSettingsChange,
   onShowMotd,
   canExport = true,
   sidebarOpen,
   onToggleSidebar,
-  canNavigateBack = false,
-  canNavigateForward = false,
-  onNavigateBack,
-  onNavigateForward,
 }: Props) {
   const t = useT();
+  const workspace = useSettings((state) => state.activeWorkspace);
+  const canNavigateBack = useDocument(selectCanNavigateBack);
+  const canNavigateForward = useDocument(selectCanNavigateForward);
   const [aboutOpen, setAboutOpen] = useState(false);
   const {
     frameless,
@@ -74,7 +71,7 @@ export function Toolbar({
     const target = event.target as HTMLElement;
     if (
       target.closest(
-        "button, select, a, .window-controls, .toolbar-menu, .settings-menu, .save-as-menu, .about-backdrop, .settings-modal-backdrop"
+        "button, select, a, dialog, .window-controls, .toolbar-menu, .settings-menu, .save-as-menu"
       )
     ) {
       return;
@@ -84,6 +81,7 @@ export function Toolbar({
 
   return (
     <>
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: double-click on the title bar maximizes, as in native windows; the window controls offer the same by keyboard. */}
       <header
         className={`toolbar${frameless ? " toolbar--frameless" : ""}`}
         data-tauri-drag-region={frameless ? true : undefined}
@@ -102,8 +100,10 @@ export function Toolbar({
               src={`${import.meta.env.BASE_URL}megacrow-icon.png`}
             />
             <span className="brand-text">
-              <span className="brand-title">MegaloEvolved</span>
-              <span className="brand-subtitle">Megalo IDE</span>
+              <span className="brand-title">{APP_NAME}</span>
+              <span className="brand-subtitle">
+                {t("toolbar_brand_subtitle")}
+              </span>
             </span>
           </button>
 
@@ -148,6 +148,7 @@ export function Toolbar({
             </svg>
           </button>
 
+          {/* biome-ignore lint/a11y/useSemanticElements: a labelled group of toolbar buttons, not a form fieldset. */}
           <div
             aria-label={t("toolbar_file_history")}
             className="toolbar-nav"
@@ -157,7 +158,7 @@ export function Toolbar({
               aria-label={t("toolbar_back")}
               className="toolbar-menu"
               disabled={!canNavigateBack}
-              onClick={onNavigateBack}
+              onClick={navigateBack}
               title={t("toolbar_back")}
               type="button"
             >
@@ -176,7 +177,7 @@ export function Toolbar({
               aria-label={t("toolbar_forward")}
               className="toolbar-menu"
               disabled={!canNavigateForward}
-              onClick={onNavigateForward}
+              onClick={navigateForward}
               title={t("toolbar_forward")}
               type="button"
             >
@@ -313,7 +314,7 @@ export function Toolbar({
           >
             {t("toolbar_docs")}
           </button>
-          <SettingsMenu onChange={onSettingsChange} settings={settings} />
+          <SettingsMenu />
           <WindowControls />
         </div>
       </header>

@@ -41,6 +41,7 @@ export function WindowControls() {
   const appWindow = getCurrentWindow();
 
   return (
+    // biome-ignore lint/a11y/useSemanticElements: a labelled group of window buttons, not a form fieldset.
     <div
       aria-label={t("window_controls")}
       className="window-controls"

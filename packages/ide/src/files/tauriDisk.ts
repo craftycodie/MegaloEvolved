@@ -11,10 +11,11 @@ import {
   stat,
   writeTextFile,
 } from "@tauri-apps/plugin-fs";
-import { isTauriRuntime } from "../desktop/tauriRuntime";
 import { withObjectListsFolder } from "../workspace/workspaceObjectLists";
 import { decodeTextFile } from "./decodeTextFile";
+import { FsError } from "./fsErrors";
 import { type LocalDiskNode, sortLocalDiskNodes } from "./localFolder";
+import { planTreeMove, treeMoveError } from "./treeMove";
 import { allocateNumberedName } from "./uniqueFileName";
 
 export interface LocalDiskRoot {
@@ -88,10 +89,6 @@ async function scanDirectory(
   return sortLocalDiskNodes(nodes);
 }
 
-export function isTauriDiskSupported(): boolean {
-  return isTauriRuntime();
-}
-
 export async function pickTauriFolder(title?: string): Promise<string | null> {
   const selected = await open({
     directory: true,
@@ -159,10 +156,6 @@ export function tauriFolderLabelFromRoot(root: LocalDiskRoot): string {
   return tauriFolderLabel(root.path);
 }
 
-export function tauriFolderTitle(root: LocalDiskRoot): string {
-  return root.path;
-}
-
 export async function resolveTauriMegaloFilePath(
   root: LocalDiskRoot,
   path: string[]
@@ -226,7 +219,7 @@ export async function renameTauriMegaloFile(
   newName: string
 ): Promise<string[]> {
   if (fromSegments.length === 0) {
-    throw new Error("Cannot rename the workspace root");
+    throw new FsError("rename_root", "Cannot rename the workspace root");
   }
   const fromPath = await join(root.path, ...fromSegments);
   const info = await stat(fromPath);
@@ -234,9 +227,9 @@ export async function renameTauriMegaloFile(
     ? normalizeDirectoryName(newName)
     : normalizeMegaloTextFileName(newName);
   if (normalized === null) {
-    throw new Error(
-      info.isDirectory ? "Invalid folder name" : "Invalid file name"
-    );
+    throw info.isDirectory
+      ? new FsError("invalid_folder_name", "Invalid folder name")
+      : new FsError("invalid_file_name", "Invalid file name");
   }
   const parent = fromSegments.slice(0, -1);
   const parentPath =
@@ -264,13 +257,6 @@ export async function renameTauriMegaloFile(
   return toSegments;
 }
 
-function isPathPrefix(prefix: string[], path: string[]): boolean {
-  if (prefix.length === 0 || prefix.length > path.length) {
-    return prefix.length === 0;
-  }
-  return prefix.every((segment, index) => segment === path[index]);
-}
-
 export type MoveTauriMegaloResult =
   | { status: "moved"; path: string[] }
   | { status: "noop"; path: string[] }
@@ -282,29 +268,15 @@ export async function moveTauriMegaloEntry(
   toParentSegments: string[],
   options?: { replace?: boolean }
 ): Promise<MoveTauriMegaloResult> {
-  if (fromSegments.length === 0) {
-    throw new Error("Cannot move the workspace root");
+  const plan = planTreeMove(fromSegments, toParentSegments);
+  if (plan.kind === "invalid") {
+    throw treeMoveError(plan.reason);
+  }
+  if (plan.kind === "noop") {
+    return { status: "noop", path: fromSegments };
   }
   const name = fromSegments.at(-1)!;
-  const toSegments = [...toParentSegments, name];
-  if (
-    fromSegments.length === toSegments.length &&
-    fromSegments.every((segment, index) => segment === toSegments[index])
-  ) {
-    return { status: "noop", path: fromSegments };
-  }
-
-  const fromParent = fromSegments.slice(0, -1);
-  if (
-    fromParent.length === toParentSegments.length &&
-    fromParent.every((segment, index) => segment === toParentSegments[index])
-  ) {
-    return { status: "noop", path: fromSegments };
-  }
-
-  if (isPathPrefix(fromSegments, toSegments)) {
-    throw new Error("Cannot move a folder into itself");
-  }
+  const toSegments = plan.toSegments;
 
   const fromPath = await join(root.path, ...fromSegments);
   const toPath = await join(root.path, ...toSegments);
@@ -325,7 +297,7 @@ export async function deleteTauriMegaloFile(
   pathSegments: string[]
 ): Promise<void> {
   if (pathSegments.length === 0) {
-    throw new Error("Cannot delete the workspace root");
+    throw new FsError("delete_root", "Cannot delete the workspace root");
   }
   const filePath = await join(root.path, ...pathSegments);
   const info = await stat(filePath);
@@ -354,7 +326,7 @@ export async function duplicateTauriMegaloFile(
   parentSegments?: string[]
 ): Promise<string[]> {
   if (fromSegments.length === 0) {
-    throw new Error("Cannot duplicate the workspace root");
+    throw new FsError("duplicate_root", "Cannot duplicate the workspace root");
   }
   const originalName = fromSegments.at(-1)!;
   const destParent = parentSegments ?? fromSegments.slice(0, -1);

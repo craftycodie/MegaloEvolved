@@ -935,6 +935,9 @@ var en_default = {
   out_of_range: "{{name}} out of range ({{min}} to {{max}})",
   too_many_object_filters: "Too many object filters",
   too_many_game_statistics: "Too many megalo-defined game statistics",
+  too_many_loadout_palettes: "Too many megalo-defined loadout palettes (limit {{limit}})",
+  too_many_loadouts: "Too many megalo-defined loadouts (limit {{limit}})",
+  too_many_player_traits: "Too many player traits (limit {{limit}})",
   object_type_index_out_of_range: "Object type index {{index}} is outside the wire bitset range of 0 to {{max}}",
   object_list_exceeds_objects_limit: "Object list has {{count}} entries; maximum is {{max}}",
   object_list_duplicate_entry: "Object list already contains entry for '{{name}}' (previous line: {{previousLine}}, duplicate line: {{duplicateLine}})",
@@ -1018,6 +1021,9 @@ var ja_default = {
   out_of_range: "{{name}} \u304C\u7BC4\u56F2\u5916\u3067\u3059\uFF08{{min}}\uFF5E{{max}}\uFF09",
   too_many_object_filters: "object filter \u304C\u591A\u3059\u304E\u307E\u3059",
   too_many_game_statistics: "megalo \u5B9A\u7FA9\u306E game statistic \u304C\u591A\u3059\u304E\u307E\u3059",
+  too_many_loadout_palettes: "megalo \u5B9A\u7FA9\u306E loadout palette \u304C\u591A\u3059\u304E\u307E\u3059\uFF08\u4E0A\u9650 {{limit}}\uFF09",
+  too_many_loadouts: "megalo \u5B9A\u7FA9\u306E loadout \u304C\u591A\u3059\u304E\u307E\u3059\uFF08\u4E0A\u9650 {{limit}}\uFF09",
+  too_many_player_traits: "player traits \u304C\u591A\u3059\u304E\u307E\u3059\uFF08\u4E0A\u9650 {{limit}}\uFF09",
   object_type_index_out_of_range: "object type index {{index}} \u306F\u30EF\u30A4\u30E4 bitset \u306E\u6709\u52B9\u7BC4\u56F2 0\uFF5E{{max}} \u306E\u5916\u3067\u3059",
   object_list_exceeds_objects_limit: "\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u30EA\u30B9\u30C8\u306E\u30A8\u30F3\u30C8\u30EA\u6570\u306F {{count}} \u3067\u3059\u304C\u3001\u4E0A\u9650\u306F {{max}} \u3067\u3059",
   object_list_duplicate_entry: "\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u30EA\u30B9\u30C8\u306B '{{name}}' \u304C\u65E2\u306B\u3042\u308A\u307E\u3059\uFF08\u5148\u306E\u884C: {{previousLine}}\u3001\u91CD\u8907\u884C: {{duplicateLine}}\uFF09",
@@ -1310,6 +1316,15 @@ var diagnosticMessages = {
   },
   tooManyGameStatistics() {
     return translate("too_many_game_statistics");
+  },
+  tooManyLoadoutPalettes(limit) {
+    return translate("too_many_loadout_palettes", { limit: String(limit) });
+  },
+  tooManyLoadouts(limit) {
+    return translate("too_many_loadouts", { limit: String(limit) });
+  },
+  tooManyPlayerTraits(limit) {
+    return translate("too_many_player_traits", { limit: String(limit) });
   },
   objectTypeIndexOutOfRange(index, max) {
     return translate("object_type_index_out_of_range", {
@@ -1648,6 +1663,8 @@ var SymbolTable = class {
 };
 var SymbolBinder = class {
   table = [];
+  /** Symbol id per `addReference` call, in order, so speculation can undo them. */
+  referenceLog = [];
   diagnostics;
   frontend;
   constructor(frontend, diagnostics) {
@@ -1841,6 +1858,25 @@ var SymbolBinder = class {
   }
   addReference(symbolId, reference) {
     this.table[symbolId].references.push(reference);
+    this.referenceLog.push(symbolId);
+  }
+  checkpoint() {
+    return {
+      symbols: this.table.length,
+      references: this.referenceLog.length
+    };
+  }
+  /**
+   * Drop symbols and references added since `checkpoint` (a failed
+   * speculative parse). Scope maps in `ParserSymbolContext` are not rolled
+   * back, so speculative parses must not declare symbols.
+   */
+  rollback(checkpoint) {
+    while (this.referenceLog.length > checkpoint.references) {
+      const symbolId = this.referenceLog.pop();
+      this.table[symbolId]?.references.pop();
+    }
+    this.table.length = checkpoint.symbols;
   }
   setScopeStart(symbolId, position) {
     const entry = this.table[symbolId];
@@ -3223,12 +3259,12 @@ var parseParameter = (ctx, spec) => {
 };
 var tryParseParameterValue = (ctx, ...specs) => {
   for (const spec of specs) {
-    const mark = ctx.mark();
+    const checkpoint = ctx.checkpoint();
     const parameter = parseParameter(ctx, spec);
     if (parameter !== void 0) {
       return parameter;
     }
-    ctx.reset(mark);
+    ctx.rollback(checkpoint);
   }
   return;
 };
@@ -3268,12 +3304,12 @@ var tryParseSlot = (ctx, slot) => {
   }
   if (isParameterUnion(slot)) {
     for (const spec of slot) {
-      const mark = ctx.mark();
+      const checkpoint = ctx.checkpoint();
       const parameter2 = parseParameter(ctx, spec);
       if (parameter2 !== void 0) {
         return [parameter2];
       }
-      ctx.reset(mark);
+      ctx.rollback(checkpoint);
     }
     return;
   }
@@ -3317,12 +3353,12 @@ var parseSlot = (ctx, slot, anchor) => {
   }
   if (isParameterUnion(slot)) {
     for (const spec of slot) {
-      const mark = ctx.mark();
+      const checkpoint = ctx.checkpoint();
       const parameter2 = parseParameter(ctx, spec);
       if (parameter2 !== void 0) {
         return [parameter2];
       }
-      ctx.reset(mark);
+      ctx.rollback(checkpoint);
     }
     if (isTriggerStatementBoundary(ctx.peekToken())) {
       return [];
@@ -3374,17 +3410,17 @@ var parameterParserBuilder = (...signatures) => {
   return (ctx, anchor) => {
     const parseAnchor = anchor;
     for (const signature of signatures) {
-      const mark = ctx.mark();
+      const checkpoint = ctx.checkpoint();
       const parameters = tryParseSignature(ctx, signature);
       if (parameters !== void 0) {
         return parameters;
       }
-      ctx.reset(mark);
+      ctx.rollback(checkpoint);
     }
     let bestSignature = signatures[0];
     let bestScore = -1;
     for (const signature of signatures) {
-      const mark = ctx.mark();
+      const checkpoint = ctx.checkpoint();
       let score = 0;
       for (const slot of signature) {
         const parsed = tryParseSlot(ctx, slot);
@@ -3396,7 +3432,7 @@ var parameterParserBuilder = (...signatures) => {
           break;
         }
       }
-      ctx.reset(mark);
+      ctx.rollback(checkpoint);
       if (score > bestScore) {
         bestScore = score;
         bestSignature = signature;
@@ -8482,6 +8518,7 @@ var ParserSymbolContext = class {
 var ParserContext = class {
   tokens;
   tokenIndex = 0;
+  symbolBinder;
   frontend;
   diagnostics;
   symbolParser;
@@ -8496,6 +8533,7 @@ var ParserContext = class {
     this.frontend = frontend;
     this.diagnostics = diagnostics;
     this.tokens = tokens;
+    this.symbolBinder = symbolTable;
     this.symbolParser = sharedSymbolParser ?? new ParserSymbolContext(frontend, diagnostics, symbolTable, objectLists5);
     this.playerTraitParserRepository = new PlayerTraitParserRepository(
       frontend
@@ -8518,11 +8556,31 @@ var ParserContext = class {
   hasMore() {
     return this.tokenIndex < this.tokens.length;
   }
+  /** Current token index (for progress checks, not for backtracking). */
   mark() {
     return this.tokenIndex;
   }
+  /**
+   * Move to a token index. Binder state is kept, so use
+   * {@link checkpoint}/{@link rollback} to undo a speculative parse.
+   */
   reset(mark) {
     this.tokenIndex = mark;
+  }
+  /** Save parser state before a speculative parse. */
+  checkpoint() {
+    return {
+      tokenIndex: this.tokenIndex,
+      symbols: this.symbolBinder.checkpoint()
+    };
+  }
+  /**
+   * Undo a failed speculative parse: rewind the token stream and drop symbols
+   * and references it added to the binder.
+   */
+  rollback(checkpoint) {
+    this.tokenIndex = checkpoint.tokenIndex;
+    this.symbolBinder.rollback(checkpoint.symbols);
   }
   /**
    * Use with caution.

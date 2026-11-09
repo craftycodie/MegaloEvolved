@@ -1,4 +1,6 @@
-import { compileMgloFromMegaloSourceAsync } from "../compile";
+// Import the compiler module directly: the `../compile` barrel also pulls in
+// the IDE's LSP client, which the CLI does not need.
+import { compileMgloFromMegaloSourceAsync } from "../compile/megaloCompile";
 import { decodeTextFile } from "../files";
 import type { FileProvider } from "../files/fileProvider";
 import { isAbsoluteFilesystemPath } from "../files/fileProvider/paths";

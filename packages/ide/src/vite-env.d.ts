@@ -116,3 +116,6 @@ declare module "monaco-editor/esm/vs/editor/standalone/browser/quickAccess/stand
 declare module "monaco-editor/esm/vs/editor/standalone/browser/quickAccess/standaloneCommandsQuickAccess.js" {}
 declare module "monaco-editor/esm/vs/editor/standalone/browser/quickAccess/standaloneGotoLineQuickAccess.js" {}
 declare module "monaco-editor/esm/vs/editor/standalone/browser/quickAccess/standaloneGotoSymbolQuickAccess.js" {}
+
+/** Version of @blamnetwork/blf, injected by vite.config.ts. */
+declare const __BLF_VERSION__: string;

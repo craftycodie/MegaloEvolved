@@ -1,3 +1,4 @@
+import { sep } from "@tauri-apps/api/path";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { decodeTextFile } from "../decodeTextFile";
 import {
@@ -6,6 +7,11 @@ import {
   normalizeLogicalPath,
 } from "./paths";
 import type { FileProvider } from "./types";
+
+/** Use the OS separator: `\` on Windows, `/` on macOS and Linux. */
+function toNativeSeparators(path: string): string {
+  return sep() === "\\" ? path.replace(/\//g, "\\") : path;
+}
 
 export function createTauriFileProvider(): FileProvider {
   return {
@@ -27,10 +33,10 @@ export function createTauriFileProvider(): FileProvider {
     },
     resolvePath(relativePath: string, fromDir: string): string {
       if (isAbsoluteLogicalPath(relativePath)) {
-        return normalizeLogicalPath(relativePath).replace(/\//g, "\\");
+        return toNativeSeparators(normalizeLogicalPath(relativePath));
       }
       const base = fromDir.replace(/[\\/]+$/, "");
-      return joinLogicalPaths(base, relativePath).replace(/\//g, "\\");
+      return toNativeSeparators(joinLogicalPaths(base, relativePath));
     },
   };
 }

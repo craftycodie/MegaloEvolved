@@ -1,10 +1,24 @@
-import { type RefObject, useEffect, useLayoutEffect, useRef } from "react";
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+} from "react";
+import { focusFirstMenuItem, handleMenuArrowKeys } from "./menuKeyboard";
 
 export interface ContextMenuPositionOptions {
   closeOnResize?: boolean;
   closeOnScroll?: boolean;
 }
 
+/**
+ * Place a context menu at the pointer (kept inside the window), focus its
+ * first item, close it on Escape / outside click / scroll / resize, and give
+ * focus back to whatever had it before the menu opened.
+ */
 export function useContextMenuPosition(
   menu: { x: number; y: number } | null,
   onClose: () => void,
@@ -12,8 +26,13 @@ export function useContextMenuPosition(
     closeOnResize = true,
     closeOnScroll = true,
   }: ContextMenuPositionOptions = {}
-): RefObject<HTMLDivElement | null> {
+): {
+  onKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => void;
+  panelRef: RefObject<HTMLDivElement | null>;
+} {
   const panelRef = useRef<HTMLDivElement>(null);
+  const close = useEffectEvent(() => onClose());
+  const isOpen = menu !== null;
 
   useLayoutEffect(() => {
     if (!(menu && panelRef.current)) {
@@ -27,42 +46,58 @@ export function useContextMenuPosition(
   }, [menu]);
 
   useEffect(() => {
-    if (!menu) {
+    if (!isOpen) {
       return;
     }
+    const previousFocus =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    focusFirstMenuItem(panelRef.current);
 
-    const onPointerDown = (event: globalThis.MouseEvent) => {
-      if (panelRef.current?.contains(event.target as Node)) {
-        return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!panelRef.current?.contains(event.target as Node)) {
+        close();
       }
-      onClose();
     };
-
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        onClose();
+        close();
       }
     };
+    const onViewportChange = () => close();
 
     window.addEventListener("pointerdown", onPointerDown);
     window.addEventListener("keydown", onKeyDown);
     if (closeOnScroll) {
-      window.addEventListener("scroll", onClose, true);
+      window.addEventListener("scroll", onViewportChange, true);
     }
     if (closeOnResize) {
-      window.addEventListener("resize", onClose);
+      window.addEventListener("resize", onViewportChange);
     }
     return () => {
       window.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("keydown", onKeyDown);
-      if (closeOnScroll) {
-        window.removeEventListener("scroll", onClose, true);
-      }
-      if (closeOnResize) {
-        window.removeEventListener("resize", onClose);
+      window.removeEventListener("scroll", onViewportChange, true);
+      window.removeEventListener("resize", onViewportChange);
+      // Back to the row (or editor) the menu was opened from, if still there.
+      if (
+        previousFocus?.isConnected &&
+        document.activeElement === document.body
+      ) {
+        previousFocus.focus();
       }
     };
-  }, [closeOnResize, closeOnScroll, menu, onClose]);
+  }, [closeOnResize, closeOnScroll, isOpen]);
 
-  return panelRef;
+  const onKeyDown = useCallback((event: ReactKeyboardEvent<HTMLElement>) => {
+    if (event.key === "Tab") {
+      event.preventDefault();
+      close();
+      return;
+    }
+    handleMenuArrowKeys(event);
+  }, []);
+
+  return { onKeyDown, panelRef };
 }

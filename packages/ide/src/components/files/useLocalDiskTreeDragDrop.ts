@@ -17,7 +17,7 @@ interface Options {
   nodes: LocalDiskNode[];
   onMoveEntries: (fromPaths: string[][], toParentPath: string[]) => void;
   renamingPathKey: string | null;
-  selectedKeysRef: React.MutableRefObject<Set<string>>;
+  selectedKeysRef: React.RefObject<ReadonlySet<string>>;
   suppressClickRef: React.MutableRefObject<boolean>;
 }
 
@@ -152,11 +152,17 @@ export function useLocalDiskTreeDragDrop({
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        if (draggingPathsRef.current || pendingRef.current) {
-          clearDrag();
-          return;
-        }
+      if (event.key !== "Escape") {
+        return;
+      }
+      if (draggingPathsRef.current || pendingRef.current) {
+        clearDrag();
+        return;
+      }
+      // Only while the tree has focus: Escape elsewhere (closing a dialog,
+      // the editor's suggest widget) must not clear the tree selection.
+      const focused = document.activeElement;
+      if (focused instanceof Element && focused.closest("[data-tree-root]")) {
         clearSelection();
       }
     };
