@@ -327,7 +327,7 @@ end
       const locked = result.diagnostics.find(
         (d) =>
           d.severity === DiagnosticSeverity.Error &&
-          d.message.includes("baseVariantParametersLocked")
+          d.message.includes('"lock teams_enabled" is not supported')
       );
       expect(locked).toBeDefined();
       expect(locked!.location.type).toBe(SourceLocationType.SOURCE_CODE);

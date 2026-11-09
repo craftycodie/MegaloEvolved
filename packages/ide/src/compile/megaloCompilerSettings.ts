@@ -11,6 +11,18 @@ import type {
   UiLocale,
 } from "../workspace/appSettings";
 
+export interface MegaloCompileOptions {
+  creatorGamertag?: string;
+  includes?: {
+    inputDir?: string;
+    sourceDir?: string;
+    outputDir?: string;
+    readFile?: (path: string) => string | Promise<string>;
+    exists?: (path: string) => boolean | Promise<boolean>;
+  };
+  strictStringLiterals?: boolean;
+}
+
 export function normalizeCreatorGamertag(tag: string): string {
   return tag.trim().slice(0, 16);
 }
@@ -36,7 +48,8 @@ export function compilerSettingsFromApp(
   settings: AppSettings
 ): MegaCrowCompilerSettings {
   return {
-    creatorGamertag: normalizeCreatorGamertag(settings.gamertag) || "MegaloEvolved",
+    creatorGamertag:
+      normalizeCreatorGamertag(settings.gamertag) || "MegaloEvolved",
     locale: settings.locale,
     megacrowExtensions: megacrowExtensionsForProfile(settings.compilerProfile),
     strictStringLiterals: settings.compilerStrictness,
@@ -108,9 +121,9 @@ export function getAppliedCompilerSettings(): MegaCrowCompilerSettings {
 }
 
 export function mergeMegaloCompileOptions(
-  options: import("./megaloIncludeScan").MegaloCompileOptions | undefined,
+  options: MegaloCompileOptions | undefined,
   compilerSettings: MegaCrowCompilerSettings = appliedCompilerSettings
-): import("./megaloIncludeScan").MegaloCompileOptions | undefined {
+): MegaloCompileOptions | undefined {
   if (!(compilerSettings || options)) {
     return;
   }

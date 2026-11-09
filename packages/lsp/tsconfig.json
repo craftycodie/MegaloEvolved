@@ -18,5 +18,5 @@
       "src/*": ["../megalo/src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "tests"]
 }

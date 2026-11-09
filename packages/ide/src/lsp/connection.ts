@@ -3,7 +3,7 @@ import {
   MEGACROW_RESET_SESSION_METHOD,
   MEGACROW_RESOLVE_BASE_FILE_METHOD,
   MEGACROW_RESOLVE_INCLUDE_METHOD,
-  MEGACROW_SET_RESOLVE_BASE_FILE_METHOD,
+  type MegacrowInitializationOptions,
 } from "@megacrow/lsp/protocol";
 import {
   BrowserMessageReader,
@@ -31,6 +31,7 @@ import {
   getActiveFilePath,
   getDocumentUri,
   getLastSyncedText,
+  getLspConfig,
   isDocumentOpen,
   isPlaceholderDocumentUri,
   pathToDocumentUri,
@@ -106,6 +107,9 @@ export async function getConnection(): Promise<MessageConnection> {
           },
         },
         workspaceFolders: null,
+        initializationOptions: {
+          config: getLspConfig(),
+        } satisfies MegacrowInitializationOptions,
       };
       await connection.sendRequest("initialize", initParams);
       connection.sendNotification("initialized", {});
@@ -131,13 +135,9 @@ export function lspConfigureResolveContext(options: {
   let textToResync: string | null = null;
 
   if (options.workspace !== undefined) {
+    // Used by the resolve handlers; `resolveBaseFile` is part of the server
+    // configuration (see `lspUpdateConfig`).
     setConfiguredWorkspace(options.workspace);
-    const enabled = !!options.workspace?.outputPath?.trim();
-    void getConnection().then((connection) => {
-      connection.sendNotification(MEGACROW_SET_RESOLVE_BASE_FILE_METHOD, {
-        enabled,
-      });
-    });
   }
   if (options.filePath !== undefined) {
     const nextPath = options.filePath;

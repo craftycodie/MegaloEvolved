@@ -377,15 +377,13 @@ export function registerMegaloLanguage(monaco: Monaco): void {
         },
       },
       wordPattern: /(-?\d*\.\d\w*)|([a-zA-Z_][\w]*)/g,
-      brackets: [
-        ["(", ")"],
-        ["[", "]"],
-      ],
-      autoClosingPairs: [
-        { open: "(", close: ")" },
-        { open: "[", close: "]" },
-        { open: '"', close: '"' },
-      ],
+      // Megalo has no bracket syntax. Declare none explicitly (Monaco falls
+      // back to ()/[]/{} otherwise), so there is no bracket-pair colouring
+      // or matching.
+      brackets: [],
+      colorizedBracketPairs: [],
+      autoClosingPairs: [{ open: '"', close: '"' }],
+      surroundingPairs: [{ open: '"', close: '"' }],
     });
 
     monaco.languages.registerFoldingRangeProvider(MEGALO_LANGUAGE_ID, {

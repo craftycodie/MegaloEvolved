@@ -8,13 +8,7 @@ import {
   useState,
 } from "react";
 import type { MegaloObjectListTarget } from "../compile";
-import {
-  type MegaloIncludeFileCache,
-  type MegaloIncludeRoot,
-  type MegaloProgram,
-  requestCompileViaLsp,
-  tryParse,
-} from "../compile";
+import { type MegaloIncludeRoot, requestCompileViaLsp } from "../compile";
 import { idleAnalysis } from "../compile/compileAnalysis";
 import type { ActiveDocumentCompileBridge } from "../compile/useCompileOrchestration";
 import { isTauriRuntime } from "../desktop";
@@ -82,11 +76,8 @@ export function useActiveDocument({
   const [includeRoot, setIncludeRoot] = useState<MegaloIncludeRoot | null>(
     null
   );
-  const [includeFileCache, setIncludeFileCache] = useState<
-    MegaloIncludeFileCache | undefined
-  >();
   const [originalBytes, setOriginalBytes] = useState<Uint8Array | null>(null);
-  const [baseProgram, setBaseProgram] = useState<MegaloProgram | null>(null);
+  const [loadRevision, setLoadRevision] = useState(0);
   const [baselineSource, setBaselineSource] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [cursorLine, setCursorLine] = useState(1);
@@ -103,7 +94,6 @@ export function useActiveDocument({
   fileNameRef.current = fileName;
   activeWorkspaceRef.current = activeWorkspace;
   objectListNamesRef.current = objectListNames;
-  const sourceLoadInProgressRef = useRef(false);
   const skipBaselineCompileRef = useRef(false);
 
   const editorNavigateRef = useRef<
@@ -165,15 +155,12 @@ export function useActiveDocument({
       bridge.compileRunRef.current += 1;
     }
     saveRunRef.current += 1;
-    sourceLoadInProgressRef.current = false;
     skipBaselineCompileRef.current = false;
     suppressFileNavRef.current = false;
     setOriginalBytes(null);
-    setBaseProgram(null);
     setBaselineSource(null);
     setFileName(null);
     setIncludeRoot(null);
-    setIncludeFileCache(undefined);
     setDocumentContent("");
     setOutlineSource("");
     sourceRef.current = "";
@@ -203,12 +190,10 @@ export function useActiveDocument({
       lastPersistedSourceRef.current = text;
       setFileName(name);
       setIncludeRoot(includeRootArg ?? null);
-      setIncludeFileCache(undefined);
       setOriginalBytes(null);
       setLoadError(null);
 
       if (objectListDoc) {
-        sourceLoadInProgressRef.current = false;
         skipBaselineCompileRef.current = true;
         compileBridgeRef.current?.setCompileState("parsing");
         compileBridgeRef.current?.setAnalysis({
@@ -232,7 +217,6 @@ export function useActiveDocument({
       }
 
       if (underObjectLists) {
-        sourceLoadInProgressRef.current = false;
         skipBaselineCompileRef.current = true;
         compileBridgeRef.current?.setCompileState("ok");
         compileBridgeRef.current?.setAnalysis({
@@ -243,7 +227,6 @@ export function useActiveDocument({
         return;
       }
 
-      sourceLoadInProgressRef.current = true;
       const bridge = compileBridgeRef.current;
       if (!bridge) {
         return;
@@ -260,45 +243,13 @@ export function useActiveDocument({
         filePath: includeRootArg?.absoluteFilePath ?? null,
       });
 
+      // Includes and the base file are resolved by the LSP during compile.
+      // This load compiles itself, so the baseline compile effect (triggered
+      // by `loadRevision`) must skip once.
+      setLoadRevision((n) => n + 1);
+      skipBaselineCompileRef.current = true;
+
       void (async () => {
-        const bridge = compileBridgeRef.current;
-        if (!bridge) {
-          return;
-        }
-        const compileContext = await bridge.resolveCompileContext(
-          text,
-          name,
-          includeRootArg ?? null
-        );
-
-        if (runId !== loadRunRef.current) {
-          return;
-        }
-
-        if (!compileContext.ok) {
-          sourceLoadInProgressRef.current = false;
-          setIncludeFileCache(undefined);
-          setBaseProgram(null);
-          setLoadError(compileContext.analysis.message);
-          bridge.setAnalysis(compileContext.analysis);
-          bridge.setCompileState("error");
-          return;
-        }
-
-        setIncludeFileCache(compileContext.includeCache);
-
-        const parsed = tryParse(text);
-        const program = parsed.ok ? parsed.program : null;
-        if (program || compileContext.resolvedBaseProgram) {
-          setBaseProgram(compileContext.resolvedBaseProgram ?? program);
-          setLoadError(null);
-        } else {
-          setBaseProgram(null);
-        }
-
-        skipBaselineCompileRef.current = true;
-        sourceLoadInProgressRef.current = false;
-
         const analysisResult = await requestCompileViaLsp(text);
 
         if (
@@ -459,7 +410,6 @@ export function useActiveDocument({
         {
           workspace: activeWorkspace,
           currentFilePath: includeRoot?.absoluteFilePath ?? null,
-          includeCache: includeFileCache,
         }
       );
 
@@ -481,12 +431,7 @@ export function useActiveDocument({
         });
       });
     },
-    [
-      activeWorkspace,
-      includeFileCache,
-      includeRoot?.absoluteFilePath,
-      loadMegaloSource,
-    ]
+    [activeWorkspace, includeRoot?.absoluteFilePath, loadMegaloSource]
   );
 
   const handleNavigateToDiagnostic = useCallback(
@@ -566,7 +511,6 @@ export function useActiveDocument({
       const resolved = await resolveOpenablePathReference(kind, path, {
         workspace: activeWorkspace,
         currentFilePath: includeRoot?.absoluteFilePath ?? null,
-        includeCache: includeFileCache,
       });
       if (!resolved) {
         console.warn(
@@ -580,14 +524,13 @@ export function useActiveDocument({
       });
     });
     return () => setMegaloPathOpenHandler(null);
-  }, [activeWorkspace, includeFileCache, includeRoot, loadMegaloSource]);
+  }, [activeWorkspace, includeRoot, loadMegaloSource]);
 
   useEffect(() => {
     setMegaloDefinitionOpenHandler(async ({ file, line, column }) => {
       const resolved = await resolveOpenablePathReference("include", file, {
         workspace: activeWorkspace,
         currentFilePath: includeRoot?.absoluteFilePath ?? null,
-        includeCache: includeFileCache,
       });
       if (!resolved) {
         console.warn(`[megacrow] could not open definition file: ${file}`);
@@ -603,7 +546,7 @@ export function useActiveDocument({
       });
     });
     return () => setMegaloDefinitionOpenHandler(null);
-  }, [activeWorkspace, includeFileCache, includeRoot, loadMegaloSource]);
+  }, [activeWorkspace, includeRoot, loadMegaloSource]);
 
   const handleCursorChange = useCallback((line: number, column: number) => {
     setCursorLine(line);
@@ -622,7 +565,6 @@ export function useActiveDocument({
   }, []);
 
   return {
-    baseProgram,
     baselineSource,
     clearWorkspace,
     cursorColumn,
@@ -637,18 +579,16 @@ export function useActiveDocument({
     handleRegisterGetValue,
     handleRegisterNavigate,
     handleSourceDebounced,
-    includeFileCache,
     includeRoot,
     isObjectListDocumentOpen,
     isPlainTextDocument,
     loadError,
     loadMegaloSource,
+    loadRevision,
     originalBytes,
     outlineSource,
     readFileForNav,
-    setIncludeFileCache,
     skipBaselineCompileRef,
-    sourceLoadInProgressRef,
     syncRevision,
   };
 }

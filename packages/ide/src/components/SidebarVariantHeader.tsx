@@ -1,32 +1,18 @@
 import { useMemo } from "react";
-import type {
-  MegaloIncludeFileCache,
-  MegaloProgram,
-  SourceAnalysis,
-} from "../compile";
+import type { SourceAnalysis } from "../compile";
 import { buildVariantIdentity } from "../gametype";
 import { useIdeLocale, useT } from "../localization";
 
 interface Props {
   absoluteFilePath?: string | null;
-  baselineSource?: string | null;
-  baseProgram: MegaloProgram | null;
   compiledMetadata?: SourceAnalysis["compiledMetadata"];
-  fileBytes: Uint8Array | null;
   fileName: string | null;
-  includeCache?: MegaloIncludeFileCache;
   objectListNames?: readonly string[];
-  source: string;
 }
 
 export function SidebarVariantHeader({
-  source,
-  baseProgram,
-  baselineSource,
   fileName,
   absoluteFilePath,
-  fileBytes,
-  includeCache,
   objectListNames = [],
   compiledMetadata,
 }: Props) {
@@ -35,28 +21,13 @@ export function SidebarVariantHeader({
   const variantIdentity = useMemo(
     () =>
       buildVariantIdentity({
-        source,
-        baseProgram,
-        baselineSource,
         fileName,
         absoluteFilePath,
         objectListNames,
-        fileBytes,
-        includeCache,
         compiledMetadata,
       }),
-    [
-      source,
-      baseProgram,
-      baselineSource,
-      fileName,
-      absoluteFilePath,
-      objectListNames,
-      fileBytes,
-      includeCache,
-      compiledMetadata,
-      locale,
-    ]
+    // `locale` re-runs the memo so localized string-table names re-resolve.
+    [fileName, absoluteFilePath, objectListNames, compiledMetadata, locale]
   );
 
   if (!variantIdentity) {

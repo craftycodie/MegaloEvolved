@@ -1,6 +1,7 @@
 import {
   type AnalysisSnapshot,
   analyzeDocument,
+  type CompileSourceResult,
   compileFromSnapshot,
   encodeSemanticTokens,
   getSemanticTokens,
@@ -48,6 +49,32 @@ export const semanticTokensFromSnapshot = (
   snapshot: AnalysisSnapshot
 ): number[] => encodeSemanticTokens(getSemanticTokens(snapshot));
 
+/**
+ * Per-snapshot results that callers may share (the snapshot cache entry).
+ * `compiled` is filled in on first use and reused afterwards.
+ */
+export interface SnapshotArtifactsReuse {
+  compiled?: Promise<CompileSourceResult>;
+  semanticTokens?: number[];
+}
+
+const sharedCompile = (
+  reuse: SnapshotArtifactsReuse,
+  run: () => Promise<CompileSourceResult>
+): Promise<CompileSourceResult> => {
+  if (!reuse.compiled) {
+    const pending = run();
+    reuse.compiled = pending;
+    // Do not keep a rejected compile around; the next caller retries.
+    pending.catch(() => {
+      if (reuse.compiled === pending) {
+        reuse.compiled = undefined;
+      }
+    });
+  }
+  return reuse.compiled;
+};
+
 export const requestArtifactsFromSnapshot = async (
   snapshot: AnalysisSnapshot,
   session: MegacrowSession,
@@ -57,6 +84,11 @@ export const requestArtifactsFromSnapshot = async (
     fromUri?: string;
     objectLists?: ObjectLists;
     resolvers?: CompileResolvers;
+    /**
+     * Results already computed for this exact snapshot and configuration.
+     * The `mglo` compile is shared through it; `gvar`/`mpvr` always compile.
+     */
+    reuse?: SnapshotArtifactsReuse;
   }
 ): Promise<MegacrowRequestArtifactsResult> => {
   const wantsTokens = options.artifacts.includes("semanticTokens");
@@ -75,20 +107,28 @@ export const requestArtifactsFromSnapshot = async (
   };
 
   if (wantsTokens) {
-    result.semanticTokens = semanticTokensFromSnapshot(snapshot);
+    result.semanticTokens =
+      options.reuse?.semanticTokens ?? semanticTokensFromSnapshot(snapshot);
   }
 
   if (wantsDiagnostics || wantsBinary) {
-    const compiled = await compileFromSnapshot(snapshot, {
-      version: snapshot.version,
-      objectLists: options.objectLists,
-      fromUri: options.fromUri,
-      resolveInclude: options.resolvers?.resolveInclude,
-      resolveBaseFile: options.resolvers?.resolveBaseFile,
-      megacrowExtensions: session.megacrowExtensions,
-      compilerSettings: session.compilerSettings,
-      fileType,
-    });
+    const runCompile = () =>
+      compileFromSnapshot(snapshot, {
+        version: snapshot.version,
+        objectLists: options.objectLists,
+        fromUri: options.fromUri,
+        resolveInclude: options.resolvers?.resolveInclude,
+        resolveBaseFile: options.resolvers?.resolveBaseFile,
+        megacrowExtensions: session.megacrowExtensions,
+        compilerSettings: session.compilerSettings,
+        fileType,
+      });
+    // Diagnostics-only and `mglo` compile identically (`mglo` is the default
+    // container), so they share one compile per snapshot.
+    const shareable = fileType === undefined || fileType === "mglo";
+    const compiled = await (shareable && options.reuse
+      ? sharedCompile(options.reuse, runCompile)
+      : runCompile());
     const diagnostics = toLspDiagnostics(compiled.diagnostics, snapshot.source);
 
     if (wantsDiagnostics || wantsBinary) {

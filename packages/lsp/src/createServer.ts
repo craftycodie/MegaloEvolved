@@ -1,47 +1,49 @@
-import type { ObjectLists, SupportedLocale } from "@megacrow/megalo";
-import { getQuotedPathCompletionQuery, setLocale } from "@megacrow/megalo";
+import type { ObjectLists } from "@megacrow/megalo";
+import {
+  getQuotedPathCompletionQuery,
+  isMegaloVersionId,
+  MEGALO_VERSIONS,
+  setLocale,
+} from "@megacrow/megalo";
 import type { Connection } from "vscode-languageserver";
 import type {
+  DidChangeConfigurationParams,
   DidChangeTextDocumentParams,
   InitializeParams,
   InitializeResult,
 } from "vscode-languageserver-protocol";
 import { TextDocumentSyncKind } from "vscode-languageserver-protocol";
 import { TextDocument } from "vscode-languageserver-textdocument";
-import { requestArtifactsFromSnapshot } from "./artifacts";
+import {
+  analyzeDocumentSnapshot,
+  requestArtifactsFromSnapshot,
+} from "./artifacts";
 import { createCoalescer, createPromiseCoalescer } from "./coalesce";
 import {
   completionsFromSnapshot,
   hoverFromSnapshot,
   pathCompletionsFromEntries,
 } from "./completions";
+import { DEFAULT_MEGACROW_CONFIG, parseConfig, sameConfig } from "./config";
 import { definitionFromSnapshot } from "./definition";
 import { analyzeObjectListFor, versionConfigurationFor } from "./diagnostics";
 import { DocumentStore } from "./documentStore";
 import {
   MEGACROW_ANALYZE_OBJECT_LIST_METHOD,
+  MEGACROW_CONFIGURATION_SECTION,
   MEGACROW_LIST_DIRECTORY_METHOD,
   MEGACROW_REQUEST_ARTIFACTS_METHOD,
   MEGACROW_RESET_SESSION_METHOD,
-  MEGACROW_SET_COMPILER_SETTINGS_METHOD,
-  MEGACROW_SET_LOCALE_METHOD,
-  MEGACROW_SET_MEGACROW_EXTENSIONS_METHOD,
-  MEGACROW_SET_MEGALO_VERSION_METHOD,
-  MEGACROW_SET_OBJECT_LISTS_METHOD,
-  MEGACROW_SET_RESOLVE_BASE_FILE_METHOD,
   MEGACROW_VERSION_CONFIGURATION_METHOD,
   type MegacrowAnalyzeObjectListParams,
   type MegacrowAnalyzeObjectListResult,
+  type MegacrowConfig,
+  type MegacrowInitializationOptions,
   type MegacrowListDirectoryParams,
   type MegacrowListDirectoryResult,
   type MegacrowRequestArtifactsParams,
   type MegacrowRequestArtifactsResult,
-  type MegacrowSetCompilerSettingsParams,
-  type MegacrowSetLocaleParams,
-  type MegacrowSetMegacrowExtensionsParams,
-  type MegacrowSetMegaloVersionParams,
-  type MegacrowSetObjectListsParams,
-  type MegacrowSetResolveBaseFileParams,
+  type MegacrowVersionConfigurationParams,
   type MegacrowVersionConfigurationResult,
   SEMANTIC_TOKENS_LEGEND,
 } from "./protocol";
@@ -54,9 +56,36 @@ export const startMegacrowLanguageServer = (connection: Connection): void => {
   const documents = new DocumentStore();
   const snapshotCache = new SnapshotCache();
 
+  let config: MegacrowConfig = DEFAULT_MEGACROW_CONFIG;
   let workspaceObjectLists: ObjectLists | undefined;
   let resolveBaseFileEnabled = true;
   let sessionEpoch = 0;
+
+  /**
+   * Validate and apply a whole configuration. Returns true only when it
+   * differs from the current one (callers then re-analyze open documents).
+   */
+  const applyConfig = (raw: unknown, source: string): boolean => {
+    const parsed = parseConfig(raw);
+    if (!parsed.ok) {
+      console.error(
+        `[megacrow-lsp] ignored invalid configuration from ${source}: ${parsed.error}`
+      );
+      return false;
+    }
+    const next = parsed.config;
+    if (sameConfig(next, config)) {
+      return false;
+    }
+    config = next;
+    session.setMegacrowExtensions(next.megacrowExtensions);
+    session.setCompilerSettings(next.compilerSettings);
+    session.setMegaloVersion(next.megaloVersion);
+    workspaceObjectLists = next.objectLists ?? undefined;
+    resolveBaseFileEnabled = next.resolveBaseFile;
+    setLocale(next.locale);
+    return true;
+  };
 
   const staleArtifactsResult = (
     version: number
@@ -76,45 +105,50 @@ export const startMegacrowLanguageServer = (connection: Connection): void => {
     uri: string;
     text: string;
     version: number;
-  }>(async (job) => {
-    const epoch = sessionEpoch;
-    const entry = await snapshotCache.refresh(
-      job.uri,
-      job.text,
-      job.version,
-      session,
-      resolverOptions()
-    );
-    if (epoch !== sessionEpoch) {
-      return;
-    }
-    const doc = documents.get(job.uri);
-    if (!doc || doc.version !== job.version) {
-      return;
-    }
-    const artifacts = await requestArtifactsFromSnapshot(
-      entry.snapshot,
-      session,
-      {
-        artifacts: ["diagnostics"],
-        documentVersion: job.version,
-        fromUri: job.uri,
-        objectLists: workspaceObjectLists,
-        resolvers: createResolvers(connection, resolveBaseFileEnabled),
+  }>(
+    (job) => job.uri,
+    async (job) => {
+      const entry = await snapshotCache.refresh(
+        job.uri,
+        job.text,
+        job.version,
+        session,
+        resolverOptions()
+      );
+      // Settings changed or the session was reset while analyzing: a fresh
+      // publish for this document is already queued.
+      if (entry.epoch !== snapshotCache.epoch) {
+        return;
       }
-    );
-    if (epoch !== sessionEpoch) {
-      return;
+      const doc = documents.get(job.uri);
+      if (!doc || doc.version !== job.version) {
+        return;
+      }
+      const artifacts = await requestArtifactsFromSnapshot(
+        entry.snapshot,
+        session,
+        {
+          artifacts: ["diagnostics"],
+          documentVersion: job.version,
+          fromUri: job.uri,
+          objectLists: workspaceObjectLists,
+          resolvers: createResolvers(connection, resolveBaseFileEnabled),
+          reuse: entry,
+        }
+      );
+      if (entry.epoch !== snapshotCache.epoch) {
+        return;
+      }
+      const latest = documents.get(job.uri);
+      if (!latest || latest.version !== job.version) {
+        return;
+      }
+      connection.sendDiagnostics({
+        uri: job.uri,
+        diagnostics: artifacts.diagnostics ?? [],
+      });
     }
-    const latest = documents.get(job.uri);
-    if (!latest || latest.version !== job.version) {
-      return;
-    }
-    connection.sendDiagnostics({
-      uri: job.uri,
-      diagnostics: artifacts.diagnostics ?? [],
-    });
-  });
+  );
 
   const invalidateAndRepublishAll = (): void => {
     snapshotCache.clear();
@@ -148,6 +182,29 @@ export const startMegacrowLanguageServer = (connection: Connection): void => {
       documents.set(uri, doc);
     }
 
+    const resolvers = createResolvers(connection, resolveBaseFileEnabled);
+
+    // Object lists passed with the request (not the workspace lists the
+    // snapshot cache uses): parse and compile against those lists, uncached.
+    if (
+      params.objectLists !== undefined &&
+      params.objectLists !== workspaceObjectLists
+    ) {
+      const snapshot = await analyzeDocumentSnapshot(text, session, {
+        version: session.megaloVersion,
+        objectLists: params.objectLists,
+        fromUri: uri,
+        resolvers,
+      });
+      return requestArtifactsFromSnapshot(snapshot, session, {
+        artifacts: params.artifacts,
+        documentVersion: version,
+        fromUri: uri,
+        objectLists: params.objectLists,
+        resolvers,
+      });
+    }
+
     const doc = documents.get(uri);
     const entry = doc
       ? await snapshotCache.getOrRefresh(uri, doc, session, resolverOptions())
@@ -166,20 +223,13 @@ export const startMegacrowLanguageServer = (connection: Connection): void => {
         artifacts: params.artifacts,
         documentVersion: entry.version,
         fromUri: uri,
-        objectLists: params.objectLists ?? workspaceObjectLists,
-        resolvers: createResolvers(connection, resolveBaseFileEnabled),
+        objectLists: workspaceObjectLists,
+        resolvers,
+        reuse: entry,
       }
     );
 
-    if (
-      params.artifacts.includes("semanticTokens") &&
-      artifacts.semanticTokens
-    ) {
-      entry.semanticTokens = artifacts.semanticTokens;
-      snapshotCache.set(uri, entry);
-    }
-
-    if (artifacts.diagnostics) {
+    if (artifacts.diagnostics && entry.epoch === snapshotCache.epoch) {
       const latest = documents.get(uri);
       if (latest && latest.version === entry.version) {
         connection.sendDiagnostics({
@@ -218,8 +268,15 @@ export const startMegacrowLanguageServer = (connection: Connection): void => {
     documents.clearAllDiagnostics(connection);
   };
 
-  connection.onInitialize(
-    (_params: InitializeParams): InitializeResult => ({
+  connection.onInitialize((params: InitializeParams): InitializeResult => {
+    const options = params.initializationOptions as
+      | MegacrowInitializationOptions
+      | undefined;
+    if (options?.config !== undefined) {
+      // No documents are open yet, so there is nothing to republish.
+      applyConfig(options.config, "initializationOptions");
+    }
+    return {
       capabilities: {
         textDocumentSync: TextDocumentSyncKind.Full,
         hoverProvider: true,
@@ -238,7 +295,20 @@ export const startMegacrowLanguageServer = (connection: Connection): void => {
         name: "megacrow-lsp",
         version: "0.1.0",
       },
-    })
+    };
+  });
+
+  connection.onDidChangeConfiguration(
+    (params: DidChangeConfigurationParams) => {
+      const settings = params.settings as Record<string, unknown> | null;
+      const raw = settings?.[MEGACROW_CONFIGURATION_SECTION];
+      if (raw === undefined) {
+        return;
+      }
+      if (applyConfig(raw, "workspace/didChangeConfiguration")) {
+        invalidateAndRepublishAll();
+      }
+    }
   );
 
   connection.onDidOpenTextDocument((params) => {
@@ -381,8 +451,16 @@ export const startMegacrowLanguageServer = (connection: Connection): void => {
 
   connection.onRequest(
     MEGACROW_VERSION_CONFIGURATION_METHOD,
-    (): MegacrowVersionConfigurationResult =>
-      versionConfigurationFor(session.megaloVersion)
+    (
+      params?: MegacrowVersionConfigurationParams
+    ): MegacrowVersionConfigurationResult => {
+      const requested = params?.megaloVersion;
+      return versionConfigurationFor(
+        requested && isMegaloVersionId(requested)
+          ? MEGALO_VERSIONS[requested]
+          : session.megaloVersion
+      );
+    }
   );
 
   connection.onRequest(
@@ -391,64 +469,6 @@ export const startMegacrowLanguageServer = (connection: Connection): void => {
       params: MegacrowAnalyzeObjectListParams
     ): MegacrowAnalyzeObjectListResult =>
       analyzeObjectListFor(params.text, session.megaloVersion)
-  );
-
-  connection.onNotification(
-    MEGACROW_SET_OBJECT_LISTS_METHOD,
-    (params: MegacrowSetObjectListsParams) => {
-      workspaceObjectLists = params.objectLists ?? undefined;
-      invalidateAndRepublishAll();
-    }
-  );
-
-  connection.onNotification(
-    MEGACROW_SET_RESOLVE_BASE_FILE_METHOD,
-    (params: MegacrowSetResolveBaseFileParams) => {
-      const next = params.enabled;
-      if (resolveBaseFileEnabled === next) {
-        return;
-      }
-      resolveBaseFileEnabled = next;
-      invalidateAndRepublishAll();
-    }
-  );
-
-  connection.onNotification(
-    MEGACROW_SET_LOCALE_METHOD,
-    (params: MegacrowSetLocaleParams) => {
-      const next = (params.locale === "ja" ? "ja" : "en") as SupportedLocale;
-      setLocale(next);
-      invalidateAndRepublishAll();
-    }
-  );
-
-  connection.onNotification(
-    MEGACROW_SET_MEGACROW_EXTENSIONS_METHOD,
-    (params: MegacrowSetMegacrowExtensionsParams) => {
-      session.setMegacrowExtensions(params.megacrowExtensions);
-      invalidateAndRepublishAll();
-    }
-  );
-
-  connection.onNotification(
-    MEGACROW_SET_COMPILER_SETTINGS_METHOD,
-    (params: MegacrowSetCompilerSettingsParams) => {
-      session.setCompilerSettings(params.compilerSettings);
-      invalidateAndRepublishAll();
-    }
-  );
-
-  connection.onNotification(
-    MEGACROW_SET_MEGALO_VERSION_METHOD,
-    (params: MegacrowSetMegaloVersionParams) => {
-      if (!session.setMegaloVersion(params.megaloVersion)) {
-        console.warn(
-          `[megacrow-lsp] ignored unknown megaloVersion: ${params.megaloVersion}`
-        );
-        return;
-      }
-      invalidateAndRepublishAll();
-    }
   );
 
   connection.listen();

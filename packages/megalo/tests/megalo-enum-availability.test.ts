@@ -56,7 +56,10 @@ describe("megaloEnum version availability", () => {
 
     expect(e.parse("alias")).toBe("canonical");
     expect(e.supportedMembers(mcc).has("canonical")).toBe(true);
-    expect(e.supportedMembers(mcc).has("alias")).toBe(false);
+    // Aliases are not members of the supported set (typed as canonical names).
+    expect((e.supportedMembers(mcc) as ReadonlySet<string>).has("alias")).toBe(
+      false
+    );
     expect(e.supportedMembers(retail107).has("gated")).toBe(false);
   });
 

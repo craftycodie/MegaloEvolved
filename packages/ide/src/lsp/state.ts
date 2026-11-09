@@ -1,3 +1,5 @@
+import type { MegacrowConfig } from "@megacrow/lsp/protocol";
+import { ALL_MEGACROW_EXTENSIONS } from "@megacrow/megalo";
 import { getActiveWorkspace, type Workspace } from "../workspace/workspace";
 
 export const DEFAULT_DOC_URI = "file:///megalo/editor.megalo";
@@ -8,6 +10,23 @@ let documentUri = DEFAULT_DOC_URI;
 let lastSyncedText: string | null = null;
 let activeFilePath: string | null = null;
 let configuredWorkspace: Workspace | null = null;
+/** Latest server configuration; also sent as `initializationOptions` on connect. */
+let lspConfig: MegacrowConfig = {
+  compilerSettings: {},
+  locale: "en",
+  megacrowExtensions: ALL_MEGACROW_EXTENSIONS,
+  megaloVersion: "107-mcc",
+  objectLists: null,
+  resolveBaseFile: true,
+};
+
+export function getLspConfig(): MegacrowConfig {
+  return lspConfig;
+}
+
+export function setLspConfig(config: MegacrowConfig): void {
+  lspConfig = config;
+}
 
 export function getDocumentVersion(): number {
   return documentVersion;

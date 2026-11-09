@@ -104,6 +104,9 @@ export default defineConfig({
   plugins: [directoryIndexPlugin()],
   test: {
     include: ["tests/**/*.test.ts"],
+    // Compile tests load the full compiler (and BLF) per file; the 5s default
+    // is too tight when the whole suite runs in parallel.
+    testTimeout: 30_000,
     server: {
       deps: {
         inline: ["@blamnetwork/blf", "@craftycodie/cstruct"],

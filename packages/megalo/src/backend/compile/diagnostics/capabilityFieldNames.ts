@@ -252,7 +252,12 @@ export const capabilityFieldDisplayName = (
   if (flagKey !== undefined) {
     const fromLock = LOCK_FLAG_TO_MEGALO_NAME.get(flagKey);
     if (fromLock !== undefined) {
-      return fromLock;
+      // Name the modifier too ("lock teams_enabled"): the option itself may be
+      // supported while its lock / hide flag is not.
+      const aggregate = lookupInNameTree(path);
+      return aggregate === "lock" || aggregate === "hide"
+        ? `${aggregate} ${fromLock}`
+        : fromLock;
     }
     const fromTree = lookupInNameTree(`${path}.${flagKey}`);
     if (fromTree !== undefined) {

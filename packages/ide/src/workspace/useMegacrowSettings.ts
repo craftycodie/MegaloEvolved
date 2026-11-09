@@ -8,7 +8,7 @@ import {
 } from "../compile";
 import { isTauriRuntime } from "../desktop";
 import { setIdeLocale } from "../localization";
-import { lspSetMegaloVersion, lspVersionConfiguration } from "../lsp";
+import { lspUpdateConfig, lspVersionConfiguration } from "../lsp";
 import {
   type AppSettings,
   appSettingsFromMegacrow,
@@ -140,8 +140,8 @@ export function useMegacrowSettings() {
     let cancelled = false;
     void (async () => {
       try {
-        await lspSetMegaloVersion(version);
-        const config = await lspVersionConfiguration();
+        // The version itself reaches the server via `syncMegaloWorkspace`.
+        const config = await lspVersionConfiguration(version);
         if (!cancelled) {
           setObjectListNames(config.objectListNames);
         }
@@ -160,16 +160,16 @@ export function useMegacrowSettings() {
     const locale = settings.locale === "ja" ? "ja" : "en";
     setLocale(locale);
     setIdeLocale(locale);
-    void import("../lsp").then(
-      ({ lspSetLocale, lspSetMegacrowExtensions, lspSetCompilerSettings }) => {
-        void lspSetLocale(locale);
-        void lspSetMegacrowExtensions(compilerSettings.megacrowExtensions);
-        void lspSetCompilerSettings({
-          strictStringLiterals: compilerSettings.strictStringLiterals,
-          creatorGamertag: compilerSettings.creatorGamertag,
-        });
-      }
-    );
+    // Sent only when the merged server configuration changes, so unrelated
+    // settings saves (e.g. `lastOpenFilePath`) do not re-analyze documents.
+    lspUpdateConfig({
+      locale,
+      megacrowExtensions: compilerSettings.megacrowExtensions,
+      compilerSettings: {
+        strictStringLiterals: compilerSettings.strictStringLiterals,
+        creatorGamertag: compilerSettings.creatorGamertag,
+      },
+    });
   }, [
     settings.gamertag,
     settings.compilerStrictness,

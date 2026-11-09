@@ -1,23 +1,20 @@
 import {
   MEGACROW_ANALYZE_OBJECT_LIST_METHOD,
+  MEGACROW_CONFIGURATION_SECTION,
   MEGACROW_REQUEST_ARTIFACTS_METHOD,
-  MEGACROW_SET_COMPILER_SETTINGS_METHOD,
-  MEGACROW_SET_LOCALE_METHOD,
-  MEGACROW_SET_MEGACROW_EXTENSIONS_METHOD,
-  MEGACROW_SET_MEGALO_VERSION_METHOD,
-  MEGACROW_SET_OBJECT_LISTS_METHOD,
   MEGACROW_VERSION_CONFIGURATION_METHOD,
   type MegacrowArtifactKind,
+  type MegacrowConfig,
   type MegacrowRequestArtifactsResult,
+  type MegacrowVersionConfigurationParams,
 } from "@megacrow/lsp/protocol";
+import type { MegaloVersionId } from "@megacrow/megalo";
 import type {
-  CompilerSettings,
-  MegacrowExtensions,
-  MegaloVersionId,
-  ObjectLists,
-} from "@megacrow/megalo";
-import type { Diagnostic } from "vscode-languageserver-protocol";
+  Diagnostic,
+  DidChangeConfigurationParams,
+} from "vscode-languageserver-protocol";
 import { getConnection, lspDocumentUri, lspSyncDocument } from "./connection";
+import { getLspConfig, setLspConfig } from "./state";
 
 function decodeBase64(dataBase64: string): Uint8Array {
   const binary = atob(dataBase64);
@@ -257,14 +254,18 @@ export async function lspCompletions(
   return [];
 }
 
-export async function lspVersionConfiguration(): Promise<{
+/** Object-list names for `megaloVersion` (default: the configured version). */
+export async function lspVersionConfiguration(
+  megaloVersion?: MegaloVersionId
+): Promise<{
   objectListNames: readonly string[];
 }> {
   const connection = await getConnection();
-  return (await connection.sendRequest(
-    MEGACROW_VERSION_CONFIGURATION_METHOD,
-    {}
-  )) as { objectListNames: readonly string[] };
+  return (await connection.sendRequest(MEGACROW_VERSION_CONFIGURATION_METHOD, {
+    megaloVersion,
+  } satisfies MegacrowVersionConfigurationParams)) as {
+    objectListNames: readonly string[];
+  };
 }
 
 export async function lspAnalyzeObjectList(text: string): Promise<{
@@ -276,43 +277,39 @@ export async function lspAnalyzeObjectList(text: string): Promise<{
   })) as { diagnostics: Diagnostic[] };
 }
 
-export async function lspSetObjectLists(
-  objectLists: ObjectLists | null
-): Promise<void> {
-  const connection = await getConnection();
-  connection.sendNotification(MEGACROW_SET_OBJECT_LISTS_METHOD, {
-    objectLists,
-  });
+let lastSentConfig: string | null = null;
+const configListeners = new Set<() => void>();
+
+/**
+ * Called after each configuration change is queued (ahead of any request sent
+ * afterwards), e.g. to recompile with the new compiler profile.
+ */
+export function subscribeLspConfigChanges(listener: () => void): () => void {
+  configListeners.add(listener);
+  return () => {
+    configListeners.delete(listener);
+  };
 }
 
-export async function lspSetMegaloVersion(
-  megaloVersion: MegaloVersionId
-): Promise<void> {
-  const connection = await getConnection();
-  connection.sendNotification(MEGACROW_SET_MEGALO_VERSION_METHOD, {
-    megaloVersion,
+/**
+ * Merge `patch` into the server configuration and send the whole configuration
+ * with `workspace/didChangeConfiguration` — only when it actually changed, so
+ * unrelated settings saves never make the server re-analyze.
+ */
+export function lspUpdateConfig(patch: Partial<MegacrowConfig>): void {
+  const next: MegacrowConfig = { ...getLspConfig(), ...patch };
+  setLspConfig(next);
+  const serialized = JSON.stringify(next);
+  if (serialized === lastSentConfig) {
+    return;
+  }
+  lastSentConfig = serialized;
+  void getConnection().then((connection) => {
+    connection.sendNotification("workspace/didChangeConfiguration", {
+      settings: { [MEGACROW_CONFIGURATION_SECTION]: next },
+    } satisfies DidChangeConfigurationParams);
   });
-}
-
-export async function lspSetLocale(locale: "en" | "ja"): Promise<void> {
-  const connection = await getConnection();
-  connection.sendNotification(MEGACROW_SET_LOCALE_METHOD, { locale });
-}
-
-export async function lspSetMegacrowExtensions(
-  megacrowExtensions: MegacrowExtensions
-): Promise<void> {
-  const connection = await getConnection();
-  connection.sendNotification(MEGACROW_SET_MEGACROW_EXTENSIONS_METHOD, {
-    megacrowExtensions,
-  });
-}
-
-export async function lspSetCompilerSettings(
-  compilerSettings: Partial<CompilerSettings>
-): Promise<void> {
-  const connection = await getConnection();
-  connection.sendNotification(MEGACROW_SET_COMPILER_SETTINGS_METHOD, {
-    compilerSettings,
-  });
+  for (const listener of configListeners) {
+    listener();
+  }
 }

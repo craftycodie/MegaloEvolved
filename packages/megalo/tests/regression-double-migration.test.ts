@@ -25,7 +25,7 @@ end
       (d) => d.severity === DiagnosticSeverity.Error
     );
     expect(errors.map((d) => d.message)).toEqual([
-      "Trigger type 'double_migration' is not supported by Halo: Reach - Private Alpha.",
+      "Trigger type 'double_migration' is not supported by Halo: Reach - Alpha.",
     ]);
     expect(errors[0]?.location.type).toBe(SourceLocationType.SOURCE_CODE);
     if (errors[0]?.location.type === SourceLocationType.SOURCE_CODE) {
@@ -45,7 +45,7 @@ end
       (d) => d.severity === DiagnosticSeverity.Error
     );
     expect(errors.map((d) => d.message)).toEqual([
-      "Trigger type 'double_migration' is not supported by Halo: Reach - Public Beta.",
+      "Trigger type 'double_migration' is not supported by Halo: Reach - Beta.",
     ]);
     expect(errors[0]?.location.type).toBe(SourceLocationType.SOURCE_CODE);
   });

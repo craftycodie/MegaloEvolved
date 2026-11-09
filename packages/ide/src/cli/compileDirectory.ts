@@ -6,7 +6,6 @@ import {
   compileMegaloFile,
 } from "./compileSource";
 import type { CliFilesystem } from "./filesystem";
-import { expandSourceIncludes } from "./includes";
 
 export interface CompileDirectoryOptions {
   filesystem: CliFilesystem;
@@ -43,12 +42,10 @@ async function buildJobs(
   const jobs: DirectoryJob[] = [];
   for (const sourcePath of txtFiles) {
     const relativePath = await fs.relative(absoluteSourceDir, sourcePath);
-    const preview = await expandSourceIncludes(
-      decodeTextFile(await fs.readBytes(sourcePath)),
-      await fs.dirname(sourcePath),
-      fs
-    );
-    const baseMgloPath = readBaseDirective(preview);
+    // Includes are resolved by megalo during compile (`compileMegaloFile`);
+    // only the root file's `base` directive is needed to order the jobs.
+    const source = decodeTextFile(await fs.readBytes(sourcePath));
+    const baseMgloPath = readBaseDirective(source);
     const outputPath = await fs.resolve(
       absoluteOutputDir,
       relativePath.replace(/\.txt$/i, format === "bin" ? ".bin" : ".mglo")

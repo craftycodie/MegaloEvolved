@@ -3,7 +3,7 @@ import { isMccMegaloVersion, resolveGameBuildNumber } from "@megacrow/megalo";
 import { useCallback, useEffect, useState } from "react";
 import type { WorkspaceDraft } from "../components/dialogs/AddWorkspaceModal";
 import { isTauriRuntime } from "../desktop";
-import { lspSetMegaloVersion, lspVersionConfiguration } from "../lsp";
+import { lspUpdateConfig, lspVersionConfiguration } from "../lsp";
 import {
   createWorkspaceId,
   defaultMegacrowSettings,
@@ -120,8 +120,8 @@ export function useWorkspaces({
         void commitSettings(next, nextWorkspace);
       }
       try {
-        await lspSetMegaloVersion(version);
-        const config = await lspVersionConfiguration();
+        lspUpdateConfig({ megaloVersion: version });
+        const config = await lspVersionConfiguration(version);
         setObjectListNames(config.objectListNames);
       } catch (error) {
         console.error("Failed to switch Megalo version:", error);

@@ -1,6 +1,6 @@
 import { bitstream } from "@blamnetwork/blf";
 import { c_game_engine_custom_variant as AlphaCustomVariant } from "@blamnetwork/blf/haloreach/v08516_10_02_19_1607_omaha_alpha";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { compileSource } from "../src/compile-source";
 import { MegaloCompilerContext } from "../src/context";
 import {
@@ -748,6 +748,11 @@ end
 });
 
 describe("compileFromSnapshot", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
   it("matches compileSource bytes without re-lexing", async () => {
     const { ALL_MEGACROW_EXTENSIONS } = await import(
       "../src/megacrow-extensions"
@@ -755,6 +760,23 @@ describe("compileFromSnapshot", () => {
     const { analyzeDocument } = await import("../src/language-service/analyze");
     const { compileFromSnapshot, compileSource } = await import(
       "../src/compile-source"
+    );
+
+    // Each compile stamps the current time and a random content unique id
+    // into the metadata; pin both so the two outputs are comparable.
+    vi.useFakeTimers({
+      toFake: ["Date"],
+      now: new Date("2026-01-01T00:00:00Z"),
+    });
+    vi.spyOn(globalThis.crypto, "getRandomValues").mockImplementation(
+      <T extends ArrayBufferView | null>(array: T): T => {
+        if (array) {
+          new Uint8Array(array.buffer, array.byteOffset, array.byteLength).fill(
+            7
+          );
+        }
+        return array;
+      }
     );
 
     const options = {

@@ -20,7 +20,7 @@ end
 `;
 
 describe("gametype author metadata", () => {
-  it("defaults author to MegaCrow in mpvr chdr and variant", async () => {
+  it("defaults author to MegaloEvolved in mpvr chdr and variant", async () => {
     const result = await compileSource(minimalScript, {
       version,
       fileType: "mpvr",
@@ -30,11 +30,11 @@ describe("gametype author metadata", () => {
 
     const chdr = new s_blf_chunk_content_header();
     expect(search_for_chunk(bytes, chdr, "big")).toBe(true);
-    expect(chdr.metadata.creation_history.name).toBe("MegaCrow");
-    expect(chdr.metadata.modification_history.name).toBe("MegaCrow");
+    expect(chdr.metadata.creation_history.name).toBe("MegaloEvolved");
+    expect(chdr.metadata.modification_history.name).toBe("MegaloEvolved");
   });
 
-  it("falls back to MegaCrow when creatorGamertag is empty", async () => {
+  it("falls back to MegaloEvolved when creatorGamertag is empty", async () => {
     const result = await compileSource(minimalScript, {
       version,
       fileType: "mpvr",
@@ -43,7 +43,7 @@ describe("gametype author metadata", () => {
     expect(result.bytes).toBeDefined();
     const chdr = new s_blf_chunk_content_header();
     expect(search_for_chunk(result.bytes!, chdr, "big")).toBe(true);
-    expect(chdr.metadata.creation_history.name).toBe("MegaCrow");
+    expect(chdr.metadata.creation_history.name).toBe("MegaloEvolved");
   });
 
   it("uses creatorGamertag from compiler settings", async () => {

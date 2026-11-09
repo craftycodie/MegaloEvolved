@@ -256,6 +256,10 @@ export const compileWithMegaloEdit = (
   const sourcePath = path.join(HREK_MEGALO, sourceFileName);
   const baseName = path.basename(sourceFileName, path.extname(sourceFileName));
   const outputPath = path.join(destinationDir, `${baseName}.mglo`);
+  // MegaloEdit exits 0 even when it fails to compile, so "ok" relies on it
+  // writing the output. Remove a previous run's file so a stale artifact is
+  // never mistaken for success.
+  fs.rmSync(outputPath, { force: true });
 
   const result = spawnSync(
     MEGALOEDIT_EXE,

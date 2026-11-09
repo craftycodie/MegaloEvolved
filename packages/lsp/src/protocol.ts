@@ -22,15 +22,11 @@ export const MEGACROW_LIST_DIRECTORY_METHOD = "megacrow/listDirectory";
 export const MEGACROW_VERSION_CONFIGURATION_METHOD =
   "megacrow/versionConfiguration";
 export const MEGACROW_ANALYZE_OBJECT_LIST_METHOD = "megacrow/analyzeObjectList";
-export const MEGACROW_SET_OBJECT_LISTS_METHOD = "megacrow/setObjectLists";
-export const MEGACROW_SET_RESOLVE_BASE_FILE_METHOD =
-  "megacrow/setResolveBaseFile";
-export const MEGACROW_SET_LOCALE_METHOD = "megacrow/setLocale";
-export const MEGACROW_SET_MEGACROW_EXTENSIONS_METHOD =
-  "megacrow/setMegacrowExtensions";
-export const MEGACROW_SET_COMPILER_SETTINGS_METHOD =
-  "megacrow/setCompilerSettings";
-export const MEGACROW_SET_MEGALO_VERSION_METHOD = "megacrow/setMegaloVersion";
+/**
+ * Settings section in `workspace/didChangeConfiguration`:
+ * `{ settings: { megacrow: MegacrowConfig } }`.
+ */
+export const MEGACROW_CONFIGURATION_SECTION = "megacrow";
 export const MEGACROW_RESET_SESSION_METHOD = "megacrow/resetSession";
 
 export const MEGACROW_DEFINITION_SCHEME = "megacrow-definition";
@@ -101,6 +97,35 @@ export type MegacrowListDirectoryResult =
   | { entries: PathDirectoryEntry[] }
   | { error: string };
 
+/**
+ * Everything the server analyzes and compiles with. Always sent whole: as
+ * `initializationOptions.config` in `initialize`, then on every change with
+ * `workspace/didChangeConfiguration` `{ settings: { megacrow: config } }`.
+ * The server re-analyzes open documents only when the value actually changes.
+ */
+export interface MegacrowConfig {
+  compilerSettings: Partial<CompilerSettings>;
+  /** Diagnostics / hover locale. */
+  locale: "en" | "ja";
+  megacrowExtensions: MegacrowExtensions;
+  /** Engine profile id (e.g. `107-mcc`, `106`). */
+  megaloVersion: MegaloVersionId;
+  /** Workspace object lists, or `null` to use the bundled defaults. */
+  objectLists: ObjectLists | null;
+  /** When false, compile omits `resolveBaseFile` (silent sibling-source JIT). */
+  resolveBaseFile: boolean;
+}
+
+/** `initialize` → `initializationOptions`. */
+export interface MegacrowInitializationOptions {
+  config?: MegacrowConfig;
+}
+
+export interface MegacrowVersionConfigurationParams {
+  /** Answer for this version instead of the configured one. */
+  megaloVersion?: MegaloVersionId;
+}
+
 export interface MegacrowVersionConfigurationResult {
   objectListNames: readonly string[];
 }
@@ -111,34 +136,6 @@ export interface MegacrowAnalyzeObjectListParams {
 
 export interface MegacrowAnalyzeObjectListResult {
   diagnostics: Diagnostic[];
-}
-
-export interface MegacrowSetObjectListsParams {
-  /** Workspace object lists, or omit/`null` to use bundled defaults. */
-  objectLists?: ObjectLists | null;
-}
-
-export interface MegacrowSetResolveBaseFileParams {
-  /** When false, compile omits `resolveBaseFile` (silent sibling-source JIT). */
-  enabled: boolean;
-}
-
-export interface MegacrowSetLocaleParams {
-  /** Diagnostics / hover locale (`en` or `ja`). */
-  locale: "en" | "ja";
-}
-
-export interface MegacrowSetMegacrowExtensionsParams {
-  megacrowExtensions: MegacrowExtensions;
-}
-
-export interface MegacrowSetCompilerSettingsParams {
-  compilerSettings: Partial<CompilerSettings>;
-}
-
-export interface MegacrowSetMegaloVersionParams {
-  /** Engine profile id (e.g. `107-mcc`, `106`). */
-  megaloVersion: MegaloVersionId;
 }
 
 /** Params for {@link MEGACROW_RESET_SESSION_METHOD} (currently unused; reserved). */

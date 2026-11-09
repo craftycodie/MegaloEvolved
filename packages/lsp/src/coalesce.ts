@@ -3,10 +3,17 @@ export interface Coalescer<T> {
   schedule: (job: T) => void;
 }
 
+/**
+ * Runs jobs one at a time, keeping only the latest pending job per key.
+ * Scheduling key A never drops a pending job for key B (one pending slot per
+ * document URI, not one for the whole server).
+ */
 export const createCoalescer = <T>(
+  keyOf: (job: T) => string,
   processor: (job: T) => Promise<void>
 ): Coalescer<T> => {
-  let pending: T | null = null;
+  // Insertion-ordered: a key keeps its queue position when its job is replaced.
+  const pending = new Map<string, T>();
   let busy = false;
 
   const drain = async (): Promise<void> => {
@@ -15,14 +22,19 @@ export const createCoalescer = <T>(
     }
     busy = true;
     try {
-      while (pending) {
-        const job = pending;
-        pending = null;
-        await processor(job);
+      for (let next = pending.entries().next(); !next.done; ) {
+        const [key, job] = next.value;
+        pending.delete(key);
+        try {
+          await processor(job);
+        } catch (error) {
+          console.error("[megacrow-lsp] coalesced job failed", error);
+        }
+        next = pending.entries().next();
       }
     } finally {
       busy = false;
-      if (pending) {
+      if (pending.size > 0) {
         void drain();
       }
     }
@@ -30,11 +42,11 @@ export const createCoalescer = <T>(
 
   return {
     schedule: (job: T) => {
-      pending = job;
+      pending.set(keyOf(job), job);
       void drain();
     },
     clearPending: () => {
-      pending = null;
+      pending.clear();
     },
   };
 };

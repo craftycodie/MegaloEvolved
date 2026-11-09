@@ -268,7 +268,7 @@ end
         (error) =>
           error.message.includes("action") &&
           error.message.includes(kind) &&
-          error.message.includes("MegaCrow")
+          error.message.includes("MegaloEvolved")
       );
     expect(reserved).toHaveLength(1);
     expect(diagnostics.getWarnings()).toHaveLength(0);
@@ -326,7 +326,7 @@ end
     expect(diagnostics.getErrors()[0]?.message).toContain("shared_timer");
     expect(diagnostics.getErrors()[0]?.message).toContain("timer");
     expect(diagnostics.getErrors()[0]?.message).toContain("already have");
-    expect(diagnostics.getErrors()[0]?.message).toContain("MegaCrow");
+    expect(diagnostics.getErrors()[0]?.message).toContain("MegaloEvolved");
     expect(diagnostics.getWarnings()).toHaveLength(0);
   });
 

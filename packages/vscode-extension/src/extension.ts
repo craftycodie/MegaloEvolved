@@ -16,13 +16,12 @@ import {
 } from "vscode-languageclient/node";
 import {
   type ListDirectoryParams,
+  MEGACROW_CONFIGURATION_SECTION,
   MEGACROW_LIST_DIRECTORY_METHOD,
   MEGACROW_RESOLVE_BASE_FILE_METHOD,
   MEGACROW_RESOLVE_INCLUDE_METHOD,
-  MEGACROW_SET_COMPILER_SETTINGS_METHOD,
-  MEGACROW_SET_LOCALE_METHOD,
-  MEGACROW_SET_MEGACROW_EXTENSIONS_METHOD,
-  MEGACROW_SET_MEGALO_VERSION_METHOD,
+  type MegacrowConfig,
+  type MegacrowInitializationOptions,
   type ResolveBaseFileParams,
   type ResolveIncludeParams,
 } from "./protocol";
@@ -102,37 +101,31 @@ const updateVersionStatusBar = (): void => {
   versionStatusBar.show();
 };
 
+/** The whole server configuration, built from the `megacrow.*` settings. */
+const buildServerConfig = (): MegacrowConfig => {
+  const config = workspace.getConfiguration("megacrow");
+  return {
+    compilerSettings: {
+      strictStringLiterals: config.get<boolean>("strictStringLiterals", false),
+      creatorGamertag: config.get<string>("gametypeAuthor", "MegaCrow"),
+    },
+    locale: config.get<string>("locale", "en") === "ja" ? "ja" : "en",
+    megacrowExtensions: config.get<boolean>("megacrowExtensions", true)
+      ? ALL_MEGACROW_EXTENSIONS
+      : DEFAULT_MEGACROW_EXTENSIONS,
+    megaloVersion: readConfiguredVersion(),
+    // VS Code uses the bundled object lists and always resolves base files.
+    objectLists: null,
+    resolveBaseFile: true,
+  };
+};
+
+/** Send the whole configuration; the server re-analyzes only if it changed. */
 const syncServerSettings = async (
   languageClient: LanguageClient
 ): Promise<void> => {
-  const config = workspace.getConfiguration("megacrow");
-  const locale = config.get<"en" | "ja">("locale", "en");
-  const megacrowExtensions = config.get<boolean>("megacrowExtensions", true);
-  const strictStringLiterals = config.get<boolean>(
-    "strictStringLiterals",
-    false
-  );
-  const megaloVersion = readConfiguredVersion();
-
-  await languageClient.sendNotification(MEGACROW_SET_LOCALE_METHOD, {
-    locale,
-  });
-  await languageClient.sendNotification(
-    MEGACROW_SET_MEGACROW_EXTENSIONS_METHOD,
-    {
-      megacrowExtensions: megacrowExtensions
-        ? ALL_MEGACROW_EXTENSIONS
-        : DEFAULT_MEGACROW_EXTENSIONS,
-    }
-  );
-  await languageClient.sendNotification(MEGACROW_SET_COMPILER_SETTINGS_METHOD, {
-    compilerSettings: {
-      strictStringLiterals,
-      creatorGamertag: config.get<string>("gametypeAuthor", "MegaCrow"),
-    },
-  });
-  await languageClient.sendNotification(MEGACROW_SET_MEGALO_VERSION_METHOD, {
-    megaloVersion,
+  await languageClient.sendNotification("workspace/didChangeConfiguration", {
+    settings: { [MEGACROW_CONFIGURATION_SECTION]: buildServerConfig() },
   });
   updateVersionStatusBar();
 };
@@ -159,12 +152,8 @@ const selectMegaloVersion = async (options?: {
   }
   const next = picked.id;
   if (next !== current) {
+    // The configuration-change listener sends the new version to the server.
     await writeConfiguredVersion(next);
-  }
-  if (client) {
-    await client.sendNotification(MEGACROW_SET_MEGALO_VERSION_METHOD, {
-      megaloVersion: next,
-    });
   }
   updateVersionStatusBar();
   return next;
@@ -201,6 +190,9 @@ const createClient = (extensionContext: ExtensionContext): LanguageClient => {
       fileEvents: workspace.createFileSystemWatcher("**/*.{txt,mglo}"),
     },
     outputChannelName: "MegaCrow Megalo",
+    initializationOptions: (): MegacrowInitializationOptions => ({
+      config: buildServerConfig(),
+    }),
   };
 
   const languageClient = new LanguageClient(
@@ -230,8 +222,10 @@ const startClient = async (
   extensionContext: ExtensionContext
 ): Promise<void> => {
   client = createClient(extensionContext);
+  // Settings go in `initializationOptions`; later changes use
+  // `workspace/didChangeConfiguration` (see `syncServerSettings`).
   await client.start();
-  await syncServerSettings(client);
+  updateVersionStatusBar();
 };
 
 export async function activate(

@@ -50,7 +50,7 @@ export function getGameName(_version: SupportedMegaloVersion): string {
   return translate("version_game_halo_reach");
 }
 
-/** Compact build tag (e.g. MCC, TU 1, Public Beta). */
+/** Compact build tag (e.g. MCC, TU 1, Beta). */
 export function getShortDescription({
   version,
   flavour,

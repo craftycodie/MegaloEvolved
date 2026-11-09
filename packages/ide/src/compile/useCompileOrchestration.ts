@@ -9,14 +9,16 @@ import {
 } from "react";
 import {
   type CompileState,
-  includeCompileFailureAnalysis,
   type MegaloIncludeRoot,
   megaloDiagnosticFromLsp,
   requestCompileDownloadViaLsp,
   requestCompileViaLsp,
   type SourceAnalysis,
 } from "../compile";
-import { idleAnalysis, withPreservedCompileArtifacts } from "../compile/compileAnalysis";
+import {
+  idleAnalysis,
+  withPreservedCompileArtifacts,
+} from "../compile/compileAnalysis";
 import { writeMccHotReloadMglo } from "../desktop";
 import {
   gametypeSaveFileName,
@@ -26,32 +28,17 @@ import {
 import type { GametypeSaveFormat } from "../gametype";
 import { isObjectListDocument, isObjectListsPath } from "../gametype";
 import { translate } from "../localization";
-import { lspAnalyzeObjectList, lspSetObjectLists } from "../lsp";
 import {
-  prepareWorkspaceCompileContext,
-  type Workspace,
-  workspaceUnexpectedFailure,
-} from "../workspace";
+  lspAnalyzeObjectList,
+  lspUpdateConfig,
+  subscribeLspConfigChanges,
+} from "../lsp";
+import type { Workspace } from "../workspace";
 
 export interface ActiveDocumentCompileBridge {
   analyzeObjectListDocument: (text: string) => Promise<SourceAnalysis>;
   compileRunRef: RefObject<number>;
   resetCompileState: () => void;
-  resolveCompileContext: (
-    text: string,
-    name: string | null,
-    root: MegaloIncludeRoot | null
-  ) => Promise<
-    | { ok: false; analysis: SourceAnalysis }
-    | {
-        ok: true;
-        includeCache: import("../compile").MegaloIncludeFileCache | undefined;
-        resolvedBaseProgram: import("../compile").MegaloProgram | null;
-        resolvedBaseCustomVariant: unknown;
-        resolvedBaseCustomVariantMgloBytes: Uint8Array | undefined;
-        baseJitDiagnostics: import("../compile").MegaloDiagnostic[] | undefined;
-      }
-  >;
   setAnalysis: (
     analysis: SourceAnalysis | ((current: SourceAnalysis) => SourceAnalysis)
   ) => void;
@@ -61,26 +48,21 @@ export interface ActiveDocumentCompileBridge {
 interface UseCompileOrchestrationOptions {
   activeWorkspace: Workspace | null;
   baselineSource: string | null;
-  baseProgram: import("../compile").MegaloProgram | null;
   bumpLocalDiskRevision: () => void;
   compileBridgeRef: RefObject<ActiveDocumentCompileBridge | null>;
   fileName: string | null;
   getEditorSource: () => string;
   includeRoot: MegaloIncludeRoot | null;
   isPlainTextDocument: boolean;
+  /** Bumped by every source load; lets the baseline effect consume `skipBaselineCompileRef`. */
+  loadRevision: number;
   objectListNames: readonly string[];
-  originalBytes: Uint8Array | null;
-  setIncludeFileCache: (
-    cache: import("../compile").MegaloIncludeFileCache | undefined
-  ) => void;
   skipBaselineCompileRef: RefObject<boolean>;
-  sourceLoadInProgressRef: RefObject<boolean>;
   sourceRef: RefObject<string>;
 }
 
 export function useCompileOrchestration({
   activeWorkspace,
-  baseProgram,
   baselineSource,
   bumpLocalDiskRevision,
   compileBridgeRef,
@@ -88,11 +70,9 @@ export function useCompileOrchestration({
   getEditorSource,
   includeRoot,
   isPlainTextDocument,
+  loadRevision,
   objectListNames,
-  originalBytes,
-  setIncludeFileCache,
   skipBaselineCompileRef,
-  sourceLoadInProgressRef,
   sourceRef,
 }: UseCompileOrchestrationOptions) {
   const [analysis, setAnalysis] = useState<SourceAnalysis>(idleAnalysis());
@@ -101,69 +81,17 @@ export function useCompileOrchestration({
   const [missingObjectListNames, setMissingObjectListNames] = useState<
     readonly string[]
   >([]);
-  const [objectListsEpoch, setObjectListsEpoch] = useState(0);
+  /** Bumped when the LSP configuration changes (profile, version, object lists…). */
+  const [configEpoch, setConfigEpoch] = useState(0);
+
+  useEffect(
+    () => subscribeLspConfigChanges(() => setConfigEpoch((value) => value + 1)),
+    []
+  );
 
   const compileRunRef = useRef(0);
   const downloadRunRef = useRef(0);
   const compileParsingRef = useRef(false);
-
-  const resolveCompileContext = useCallback(
-    async (
-      text: string,
-      name: string | null,
-      root: MegaloIncludeRoot | null
-    ) => {
-      try {
-        const result = await prepareWorkspaceCompileContext(
-          text,
-          name,
-          root,
-          activeWorkspace,
-          {
-            onStatus: (message) => {
-              setCompileState("parsing");
-              setAnalysis((current) => ({
-                ...current,
-                compileState: "parsing",
-                message,
-              }));
-            },
-          }
-        );
-        if (!result.ok) {
-          return {
-            ok: false as const,
-            analysis: includeCompileFailureAnalysis(result),
-          };
-        }
-        setAnalysis((current) =>
-          current.message.startsWith("Compiling base file")
-            ? {
-                ...current,
-                compileState: "parsing",
-                message: translate("status_compiling_megalo_source"),
-              }
-            : current
-        );
-        return {
-          ok: true as const,
-          includeCache: result.includeCache,
-          resolvedBaseProgram: result.resolvedBaseProgram,
-          resolvedBaseCustomVariant: result.resolvedBaseCustomVariant,
-          resolvedBaseCustomVariantMgloBytes:
-            result.resolvedBaseCustomVariantMgloBytes,
-          baseJitDiagnostics: result.baseJitDiagnostics,
-        };
-      } catch (error) {
-        const failure = workspaceUnexpectedFailure(error);
-        return {
-          ok: false as const,
-          analysis: includeCompileFailureAnalysis(failure),
-        };
-      }
-    },
-    [activeWorkspace]
-  );
 
   const analyzeObjectListDocument = useCallback(async (text: string) => {
     const result = await lspAnalyzeObjectList(text);
@@ -218,39 +146,13 @@ export function useCompileOrchestration({
         return;
       }
 
-      const isSourceOnly = originalBytes === null;
-      if (!(isSourceOnly || baseProgram)) {
-        return;
-      }
-
       compileParsingRef.current = true;
       setCompileState("parsing");
 
       const runId = ++compileRunRef.current;
 
       void (async () => {
-        const compileContext = await resolveCompileContext(
-          text,
-          fileName,
-          includeRoot
-        );
-        if (!compileContext.ok) {
-          if (runId === compileRunRef.current) {
-            compileParsingRef.current = false;
-            setIncludeFileCache(undefined);
-            setAnalysis((prev) =>
-              withPreservedCompileArtifacts(prev, compileContext.analysis)
-            );
-            setCompileState("error");
-          }
-          return;
-        }
-
-        setIncludeFileCache(compileContext.includeCache);
-
-        const result = await requestCompileViaLsp(text, {
-          baseJitDiagnostics: compileContext.baseJitDiagnostics,
-        });
+        const result = await requestCompileViaLsp(text);
         if (runId === compileRunRef.current && text === sourceRef.current) {
           compileParsingRef.current = false;
           setAnalysis((prev) => withPreservedCompileArtifacts(prev, result));
@@ -259,14 +161,10 @@ export function useCompileOrchestration({
       })();
     },
     [
-      baseProgram,
       fileName,
       handleObjectListAnalyzeDebounced,
       includeRoot,
       objectListNames,
-      originalBytes,
-      resolveCompileContext,
-      setIncludeFileCache,
       sourceRef,
     ]
   );
@@ -275,10 +173,7 @@ export function useCompileOrchestration({
     if (isPlainTextDocument) {
       return;
     }
-    if (baselineSource === null && baseProgram === null) {
-      return;
-    }
-    if (sourceLoadInProgressRef.current) {
+    if (baselineSource === null) {
       return;
     }
     if (skipBaselineCompileRef.current) {
@@ -290,15 +185,15 @@ export function useCompileOrchestration({
   }, [
     isPlainTextDocument,
     handleCompileDebounced,
-    baseProgram,
+    loadRevision,
     baselineSource,
-    objectListsEpoch,
+    configEpoch,
   ]);
 
   const handleWorkspaceObjectListsChange = useCallback(
     (lists: ObjectLists | null) => {
-      void lspSetObjectLists(lists);
-      setObjectListsEpoch((value) => value + 1);
+      // Recompiles through `configEpoch` when the lists actually changed.
+      lspUpdateConfig({ objectLists: lists });
     },
     []
   );
@@ -342,8 +237,7 @@ export function useCompileOrchestration({
   const compileDownload = useCallback(
     (format: GametypeSaveFormat) => {
       const source = getEditorSource();
-      const isSourceOnly = originalBytes === null;
-      if (!((isSourceOnly || baseProgram) && (fileName || source.trim()))) {
+      if (!(fileName || source.trim())) {
         setAnalysis({
           ...idleAnalysis(),
           compileState: "error",
@@ -363,35 +257,7 @@ export function useCompileOrchestration({
       }));
 
       void (async () => {
-        const compileContext = await resolveCompileContext(
-          source,
-          fileName,
-          includeRoot
-        );
-        if (!compileContext.ok) {
-          setIncludeFileCache(undefined);
-          setAnalysis(compileContext.analysis);
-          setCompileState("error");
-          return;
-        }
-
-        setIncludeFileCache(compileContext.includeCache);
-
-        const result = await requestCompileDownloadViaLsp(
-          source,
-          format,
-          originalBytes,
-          baseProgram,
-          baselineSource,
-          {
-            includeCache: compileContext.includeCache,
-            resolvedBaseProgram: compileContext.resolvedBaseProgram,
-            resolvedBaseCustomVariant: compileContext.resolvedBaseCustomVariant,
-            resolvedBaseCustomVariantMgloBytes:
-              compileContext.resolvedBaseCustomVariantMgloBytes,
-            baseJitDiagnostics: compileContext.baseJitDiagnostics,
-          }
-        );
+        const result = await requestCompileDownloadViaLsp(source, format);
 
         if (runId !== downloadRunRef.current) {
           return;
@@ -439,16 +305,7 @@ export function useCompileOrchestration({
         setCompileState(nextAnalysis.compileState);
       })();
     },
-    [
-      baseProgram,
-      baselineSource,
-      fileName,
-      getEditorSource,
-      includeRoot,
-      originalBytes,
-      resolveCompileContext,
-      setIncludeFileCache,
-    ]
+    [fileName, getEditorSource]
   );
 
   const buildVariant = useCallback(() => {
@@ -472,35 +329,7 @@ export function useCompileOrchestration({
     }));
 
     void (async () => {
-      const compileContext = await resolveCompileContext(
-        source,
-        fileName,
-        includeRoot
-      );
-      if (!compileContext.ok) {
-        setIncludeFileCache(undefined);
-        setAnalysis(compileContext.analysis);
-        setCompileState("error");
-        return;
-      }
-
-      setIncludeFileCache(compileContext.includeCache);
-
-      const result = await requestCompileDownloadViaLsp(
-        source,
-        "mglo",
-        originalBytes,
-        baseProgram,
-        baselineSource,
-        {
-          includeCache: compileContext.includeCache,
-          resolvedBaseProgram: compileContext.resolvedBaseProgram,
-          resolvedBaseCustomVariant: compileContext.resolvedBaseCustomVariant,
-          resolvedBaseCustomVariantMgloBytes:
-            compileContext.resolvedBaseCustomVariantMgloBytes,
-          baseJitDiagnostics: compileContext.baseJitDiagnostics,
-        }
-      );
+      const result = await requestCompileDownloadViaLsp(source, "mglo");
 
       if (runId !== downloadRunRef.current) {
         return;
@@ -540,18 +369,7 @@ export function useCompileOrchestration({
         setCompileState("error");
       }
     })();
-  }, [
-    activeWorkspace,
-    baseProgram,
-    baselineSource,
-    bumpLocalDiskRevision,
-    fileName,
-    getEditorSource,
-    includeRoot,
-    originalBytes,
-    resolveCompileContext,
-    setIncludeFileCache,
-  ]);
+  }, [activeWorkspace, bumpLocalDiskRevision, fileName, getEditorSource]);
 
   const resetCompileState = useCallback(() => {
     compileRunRef.current += 1;
@@ -567,7 +385,6 @@ export function useCompileOrchestration({
     analyzeObjectListDocument,
     compileRunRef,
     resetCompileState,
-    resolveCompileContext,
     setAnalysis,
     setCompileState,
   };

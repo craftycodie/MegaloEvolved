@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compileSource } from "../src/compile-source";
+import { DiagnosticSeverity } from "../src/diagnostics";
 import { MEGALO_VERSIONS } from "../src/version";
 
 const version = MEGALO_VERSIONS["107-mcc"];
@@ -46,7 +47,7 @@ end
     );
 
     expect(
-      result.diagnostics.filter((d) => d.severity === "error")
+      result.diagnostics.filter((d) => d.severity === DiagnosticSeverity.Error)
     ).toHaveLength(0);
     expect(result.bytes).toBeDefined();
   });
@@ -62,7 +63,7 @@ end
     );
 
     expect(
-      result.diagnostics.filter((d) => d.severity === "error")
+      result.diagnostics.filter((d) => d.severity === DiagnosticSeverity.Error)
     ).toHaveLength(0);
     expect(result.bytes).toBeDefined();
   });

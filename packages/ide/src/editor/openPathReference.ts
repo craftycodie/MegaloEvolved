@@ -1,8 +1,6 @@
-import type { MegaloIncludeFileCache } from "../compile/includeDiagnostics";
 import { createPlatformFileProvider } from "../files/fileProvider";
 import {
   isAbsoluteLogicalPath,
-  joinLogicalPaths,
   normalizeLogicalPath,
 } from "../files/fileProvider/paths";
 import type { Workspace } from "../workspace/workspace";
@@ -77,59 +75,17 @@ export function baseSourcePathCandidates(basePath: string): string[] {
   return [`${basePath}.txt`];
 }
 
-function lookupCachedText(
-  cache: MegaloIncludeFileCache | undefined,
-  absolute: string
-): string | undefined {
-  if (!cache) {
-    return;
-  }
-  const candidates = [
-    absolute,
-    absolute.replace(/\//g, "\\"),
-    absolute.replace(/\\/g, "/"),
-  ];
-  for (const candidate of candidates) {
-    const hit = cache.files[candidate];
-    if (hit !== undefined) {
-      return hit;
-    }
-  }
-  const lower = normalizeLogicalPath(absolute).toLowerCase();
-  for (const [key, text] of Object.entries(cache.files)) {
-    if (normalizeLogicalPath(key).toLowerCase() === lower) {
-      return text;
-    }
-  }
-  return;
-}
-
 async function resolveExistingTextPath(
   relativePath: string,
   dirs: string[],
-  workspace: Workspace | null,
-  includeCache?: MegaloIncludeFileCache
+  workspace: Workspace | null
 ): Promise<OpenablePathResult | null> {
   const fileProvider = createPlatformFileProvider(workspace);
+  if (!fileProvider) {
+    return null;
+  }
   for (const dir of dirs) {
-    const absolute = fileProvider
-      ? fileProvider.resolvePath(relativePath, dir)
-      : isAbsoluteLogicalPath(relativePath)
-        ? normalizeLogicalPath(relativePath)
-        : joinLogicalPaths(dir, relativePath);
-
-    const cached = lookupCachedText(includeCache, absolute);
-    if (cached !== undefined) {
-      return {
-        absoluteFilePath: absolute,
-        displayName: displayNameFor(absolute, workspace),
-        text: cached,
-      };
-    }
-
-    if (!fileProvider) {
-      continue;
-    }
+    const absolute = fileProvider.resolvePath(relativePath, dir);
     const text = await fileProvider.readText(absolute);
     if (text !== null) {
       return {
@@ -152,7 +108,6 @@ export async function resolveOpenablePathReference(
   options: {
     workspace: Workspace | null;
     currentFilePath: string | null;
-    includeCache?: MegaloIncludeFileCache;
   }
 ): Promise<OpenablePathResult | null> {
   const dirs = searchDirs(options.workspace, options.currentFilePath);
@@ -166,8 +121,7 @@ export async function resolveOpenablePathReference(
     const hit = await resolveExistingTextPath(
       candidate,
       dirs.length > 0 ? dirs : ["."],
-      options.workspace,
-      options.includeCache
+      options.workspace
     );
     if (hit) {
       return hit;

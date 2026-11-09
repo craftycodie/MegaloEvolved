@@ -8,9 +8,7 @@ import {
 import { failedToCompileStatus, translate } from "../localization";
 import type { Workspace } from "../workspace/workspace";
 import type { SourceAnalysis } from "./compileAnalysis";
-import type { MegaloDiagnostic } from "./diagnostics";
 import { megaloDiagnosticFromLsp } from "./diagnostics";
-import type { MegaloIncludeFileCache } from "./includeDiagnostics";
 import {
   formatMegaloCompileTiming,
   getCompileMegaloVersion,
@@ -21,15 +19,6 @@ import {
   setCompileGameBuildNumber,
   setCompileMegaloVersion,
 } from "./megaloCompilerSettings";
-import type { MegaloProgram } from "./megaloProgram";
-
-export interface CompileDownloadContext {
-  baseJitDiagnostics?: MegaloDiagnostic[];
-  includeCache?: MegaloIncludeFileCache;
-  resolvedBaseCustomVariant?: import("@blamnetwork/blf/haloreach_mcc/v_untracked_25_08_16_1352").c_game_engine_custom_variant;
-  resolvedBaseCustomVariantMgloBytes?: Uint8Array;
-  resolvedBaseProgram?: MegaloProgram | null;
-}
 
 function finalizeForCurrentVersion(
   bytes: Uint8Array,
@@ -60,11 +49,12 @@ export function syncMegaloWorkspace(workspace: Workspace | null): void {
       : undefined
   );
   void import("../lsp/lspClient").then(
-    ({ lspConfigureResolveContext, lspSetMegaloVersion }) => {
+    ({ lspConfigureResolveContext, lspUpdateConfig }) => {
       lspConfigureResolveContext({ workspace });
-      if (workspace?.megaloVersion) {
-        void lspSetMegaloVersion(workspace.megaloVersion);
-      }
+      lspUpdateConfig({
+        megaloVersion: workspace?.megaloVersion ?? "107-mcc",
+        resolveBaseFile: !!workspace?.outputPath?.trim(),
+      });
     }
   );
 }
@@ -88,7 +78,6 @@ const supersededSourceAnalysis = (): SourceAnalysis => ({
 });
 
 interface CompileJob {
-  baseJitDiagnostics?: MegaloDiagnostic[];
   reject: (reason: unknown) => void;
   resolve: (value: SourceAnalysis) => void;
   source: string;
@@ -97,10 +86,7 @@ interface CompileJob {
 let compilePending: CompileJob | null = null;
 let compileBusy = false;
 
-async function runCompileOnce(
-  source: string,
-  baseJitDiagnostics?: MegaloDiagnostic[]
-): Promise<SourceAnalysis> {
+async function runCompileOnce(source: string): Promise<SourceAnalysis> {
   const { lspRequestArtifacts } = await import("../lsp/lspClient");
   const started = performance.now();
   const result = await lspRequestArtifacts(source, [
@@ -113,10 +99,7 @@ async function runCompileOnce(
   }
   const totalMs = performance.now() - started;
   const timing = { parseMs: 0, compileMs: totalMs, totalMs };
-  const diagnostics = [
-    ...(baseJitDiagnostics ?? []),
-    ...result.diagnostics.map((d) => megaloDiagnosticFromLsp(d)),
-  ];
+  const diagnostics = result.diagnostics.map((d) => megaloDiagnosticFromLsp(d));
   const errorCount = diagnostics.filter((d) => d.severity === "error").length;
   if (!(result.ok && result.bytes) || errorCount > 0) {
     return {
@@ -159,10 +142,7 @@ async function drainCompileQueue(): Promise<void> {
       const job = compilePending;
       compilePending = null;
       try {
-        const analysis = await runCompileOnce(
-          job.source,
-          job.baseJitDiagnostics
-        );
+        const analysis = await runCompileOnce(job.source);
         if (compilePending) {
           job.resolve(supersededSourceAnalysis());
         } else {
@@ -184,44 +164,20 @@ async function drainCompileQueue(): Promise<void> {
   }
 }
 
-export function requestCompileViaLsp(
-  source: string,
-  options?: { baseJitDiagnostics?: MegaloDiagnostic[] }
-): Promise<SourceAnalysis> {
+export function requestCompileViaLsp(source: string): Promise<SourceAnalysis> {
   return new Promise((resolve, reject) => {
     if (compilePending) {
       compilePending.resolve(supersededSourceAnalysis());
     }
-    compilePending = {
-      source,
-      baseJitDiagnostics: options?.baseJitDiagnostics,
-      resolve,
-      reject,
-    };
+    compilePending = { source, resolve, reject };
     void drainCompileQueue();
   });
 }
 
-function compileDownloadFallback(baseProgram: MegaloProgram | null): {
+function compileDownloadFallback(): {
   output: Uint8Array | null;
   analysis: SourceAnalysis;
 } {
-  if (!baseProgram) {
-    return {
-      output: null,
-      analysis: {
-        compileState: "error",
-        errorCount: 1,
-        message: translate("status_load_gametype_first"),
-        byteIdentical: null,
-        byteDiffCount: null,
-        compiledByteLength: null,
-        mgloBytes: null,
-        compileTiming: null,
-        diagnostics: [],
-      },
-    };
-  }
   return {
     output: null,
     analysis: {
@@ -240,11 +196,7 @@ function compileDownloadFallback(baseProgram: MegaloProgram | null): {
 
 export async function requestCompileDownloadViaLsp(
   source: string,
-  format: GametypeSaveFormat,
-  _originalBytes: Uint8Array | null,
-  baseProgram: MegaloProgram | null,
-  _baselineSource: string | null,
-  compileContext?: CompileDownloadContext
+  format: GametypeSaveFormat
 ): Promise<{ output: Uint8Array | null; analysis: SourceAnalysis }> {
   try {
     const { lspCompileSource } = await import("../lsp/lspClient");
@@ -255,10 +207,9 @@ export async function requestCompileDownloadViaLsp(
     );
     const totalMs = performance.now() - started;
     const timing = { parseMs: 0, compileMs: totalMs, totalMs };
-    const diagnostics = [
-      ...(compileContext?.baseJitDiagnostics ?? []),
-      ...result.diagnostics.map((d) => megaloDiagnosticFromLsp(d)),
-    ];
+    const diagnostics = result.diagnostics.map((d) =>
+      megaloDiagnosticFromLsp(d)
+    );
     if (!(result.ok && result.bytes)) {
       const errorCount = diagnostics.filter(
         (d) => d.severity === "error"
@@ -301,6 +252,6 @@ export async function requestCompileDownloadViaLsp(
       },
     };
   } catch {
-    return compileDownloadFallback(baseProgram);
+    return compileDownloadFallback();
   }
 }

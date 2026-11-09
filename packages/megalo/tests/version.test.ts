@@ -23,10 +23,10 @@ describe("version metadata", () => {
     expect(getFullDescription(MEGALO_VERSIONS["107"])).toBe("Title Update 1");
     expect(getShortDescription(MEGALO_VERSIONS["106"])).toBe("Release");
     expect(getFullDescription(MEGALO_VERSIONS["106"])).toBe("Release");
-    expect(getShortDescription(MEGALO_VERSIONS["73"])).toBe("Public Beta");
-    expect(getFullDescription(MEGALO_VERSIONS["73"])).toBe("Public Beta");
-    expect(getShortDescription(MEGALO_VERSIONS["49"])).toBe("Private Alpha");
-    expect(getFullDescription(MEGALO_VERSIONS["49"])).toBe("Private Alpha");
+    expect(getShortDescription(MEGALO_VERSIONS["73"])).toBe("Beta");
+    expect(getFullDescription(MEGALO_VERSIONS["73"])).toBe("Beta");
+    expect(getShortDescription(MEGALO_VERSIONS["49"])).toBe("Alpha");
+    expect(getFullDescription(MEGALO_VERSIONS["49"])).toBe("Alpha");
   });
 
   it("composes getLabel from game name and full description", () => {

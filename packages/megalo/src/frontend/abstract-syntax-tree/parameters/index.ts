@@ -799,6 +799,26 @@ const parseSlot = (
   return [consumeLenientParameter(ctx, anchor)];
 };
 
+/**
+ * Skip one operand's tokens (a token, or an `a.b.c` member chain) without
+ * building nodes or recording symbol references. Used only while scoring
+ * signatures. Returns false at a statement boundary.
+ */
+const skipOperandTokens = (ctx: ParserContext): boolean => {
+  if (isTriggerStatementBoundary(ctx.peekToken())) {
+    return false;
+  }
+  ctx.getToken();
+  while (
+    ctx.peekToken()?.kind === TokenKind.MemberVariableSeparator &&
+    ctx.peekToken(1) !== undefined
+  ) {
+    ctx.getToken();
+    ctx.getToken();
+  }
+  return true;
+};
+
 const tryParseSignature = (
   ctx: ParserContext,
   signature: ParameterSignature
@@ -854,9 +874,10 @@ export const parameterParserBuilder = (
       ctx.reset(mark);
     }
 
-    // Prefer the signature that matched the most leading slots before failing.
-    // Falling back to signatures[0] alone mis-parses discriminated forms like
-    // play_sound's everyone|player|team targets when a later slot is unresolved.
+    // Prefer the signature whose slots match best. A slot that fails (e.g. an
+    // unresolved name) is skipped and scoring continues, so a later
+    // discriminating keyword still decides between forms like set_score /
+    // play_sound's everyone|player|team targets.
     let bestSignature = signatures[0]!;
     let bestScore = -1;
 
@@ -866,11 +887,13 @@ export const parameterParserBuilder = (
 
       for (const slot of signature) {
         const parsed = tryParseSlot(ctx, slot);
-        if (parsed === undefined) {
+        if (parsed !== undefined) {
+          score += 1;
+          continue;
+        }
+        if (!skipOperandTokens(ctx)) {
           break;
         }
-
-        score += 1;
       }
 
       ctx.reset(mark);

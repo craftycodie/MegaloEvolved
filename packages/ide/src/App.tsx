@@ -122,7 +122,6 @@ export function App() {
 
   const compile = useCompileOrchestration({
     activeWorkspace,
-    baseProgram: document.baseProgram,
     baselineSource: document.baselineSource,
     bumpLocalDiskRevision: workspaces.bumpLocalDiskRevision,
     compileBridgeRef,
@@ -130,11 +129,9 @@ export function App() {
     getEditorSource: document.getEditorSource,
     includeRoot: document.includeRoot,
     isPlainTextDocument: document.isPlainTextDocument,
+    loadRevision: document.loadRevision,
     objectListNames,
-    originalBytes: document.originalBytes,
-    setIncludeFileCache: document.setIncludeFileCache,
     skipBaselineCompileRef: document.skipBaselineCompileRef,
-    sourceLoadInProgressRef: document.sourceLoadInProgressRef,
     sourceRef,
   });
 
@@ -283,14 +280,9 @@ export function App() {
           >
             <SidebarVariantHeader
               absoluteFilePath={document.includeRoot?.absoluteFilePath ?? null}
-              baselineSource={document.baselineSource}
-              baseProgram={document.baseProgram}
               compiledMetadata={compile.analysis.compiledMetadata}
-              fileBytes={document.originalBytes}
               fileName={document.fileName}
-              includeCache={document.includeFileCache}
               objectListNames={objectListNames}
-              source={document.outlineSource}
             />
             <div className="sidebar-body">
               <FilesPanel
