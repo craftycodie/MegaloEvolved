@@ -2,7 +2,7 @@
 
 ## Foreword
 
-Megalo was designed in March 2008 by Bungie's Tyson Green as a data-driven system for implementing Halo multiplayer game rules. End-user Megalo tooling was an objective from the start, but it was something Bungie never shipped during Reach's original development.
+Megalo was designed in March 2008 by Bungie's Jon Cable as a data-driven system for implementing Halo multiplayer game rules. End-user Megalo tooling was an objective from the start, but it was something Bungie never shipped during Reach's original development.
 
 Since then, Halo Studios has released Bungie's **MegaloEdit.exe** with the Halo Reach Editing Kit (HREK), enabling players to build their own scripts. Little documentation has accompanied that tooling.
 

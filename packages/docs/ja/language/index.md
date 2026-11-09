@@ -2,7 +2,7 @@
 
 ## まえがき
 
-Megalo は 2008 年 3 月、Bungie の Tyson Green によって、Halo マルチプレイヤーのゲームルールをデータ駆動で実装する仕組みとして設計されました。エンドユーザー向けの Megalo ツールは当初から目標でしたが、Reach の当初開発期間中に Bungie が出荷することはありませんでした。
+Megalo は 2008 年 3 月、Bungie の Jon Cable によって、Halo マルチプレイヤーのゲームルールをデータ駆動で実装する仕組みとして設計されました。エンドユーザー向けの Megalo ツールは当初から目標でしたが、Reach の当初開発期間中に Bungie が出荷することはありませんでした。
 
 その後、Halo Studios が Halo Reach Editing Kit (HREK) とともに Bungie の **MegaloEdit.exe** を公開し、プレイヤーが独自のスクリプトを書けるようになりました。そのツールに付随するドキュメントはほとんどありません。
 
