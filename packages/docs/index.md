@@ -1,6 +1,6 @@
-# What is @blamnetwork/megalo?
+# What is MegaloEvolved?
 
-**@blamnetwork/megalo** is a TypeScript library for working with Halo **Megalo** scripts — the text-based scripting language used in Halo: Reach gametypes and custom map variants.
+**MegaloEvolved** (npm package `@blamnetwork/megalo`) is a TypeScript library for working with Halo **Megalo** scripts — the text-based scripting language used in Halo: Reach gametypes and custom map variants.
 
 ## What this package provides
 

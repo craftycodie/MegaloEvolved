@@ -1,10 +1,10 @@
 {
-  "name": "megacrow-megalo",
-  "displayName": "MegaCrow Megalo",
-  "description": "Megalo language support for VS Code — syntax highlighting, autocomplete, hover, and go-to-definition via the MegaCrow LSP.",
+  "name": "megaloevolved",
+  "displayName": "MegaloEvolved LSP",
+  "description": "Language Server for Halo's Megalo scripting language.",
   "version": "0.0.0",
   "private": true,
-  "publisher": "megacrow",
+  "publisher": "craftycodie",
   "license": "ISC",
   "engines": {
     "vscode": "^1.85.0"
@@ -16,7 +16,7 @@
   "keywords": [
     "megalo",
     "halo",
-    "megacrow",
+    "megaloevolved",
     "lsp"
   ],
   "activationEvents": [
@@ -42,9 +42,9 @@
       }
     ],
     "configuration": {
-      "title": "MegaCrow",
+      "title": "MegaloEvolved",
       "properties": {
-        "megacrow.trace.server": {
+        "megaloevolved.trace.server": {
           "type": "string",
           "enum": [
             "off",
@@ -54,7 +54,7 @@
           "default": "off",
           "description": "Traces communication between VS Code and the Megalo language server."
         },
-        "megacrow.locale": {
+        "megaloevolved.locale": {
           "type": "string",
           "enum": [
             "en",
@@ -63,23 +63,23 @@
           "default": "en",
           "description": "Locale for Megalo diagnostics and hover text."
         },
-        "megacrow.megacrowExtensions": {
+        "megaloevolved.languageExtensions": {
           "type": "boolean",
           "default": true,
-          "description": "Enable MegaCrow language extensions (vs MegaloEdit-compatible mode)."
+          "description": "Enable MegaloEvolved language extensions (vs MegaloEdit-compatible mode)."
         },
-        "megacrow.strictStringLiterals": {
+        "megaloevolved.strictStringLiterals": {
           "type": "boolean",
           "default": false,
           "description": "Treat undeclared string literals as errors instead of warnings."
         },
-        "megacrow.gametypeAuthor": {
+        "megaloevolved.gametypeAuthor": {
           "type": "string",
-          "default": "MegaCrow",
+          "default": "MegaloEvolved",
           "maxLength": 16,
           "description": "Author name written into compiled gametype content metadata."
         },
-        "megacrow.megaloVersion": {
+        "megaloevolved.megaloVersion": {
           "type": "string",
           "enum": [
             "107-mcc",
@@ -95,12 +95,12 @@
     },
     "commands": [
       {
-        "command": "megacrow.restartServer",
-        "title": "MegaCrow: Restart Language Server"
+        "command": "megaloevolved.restartServer",
+        "title": "MegaloEvolved: Restart Language Server"
       },
       {
-        "command": "megacrow.selectMegaloVersion",
-        "title": "MegaCrow: Select Megalo Version"
+        "command": "megaloevolved.selectMegaloVersion",
+        "title": "MegaloEvolved: Select Megalo Version"
       }
     ]
   },

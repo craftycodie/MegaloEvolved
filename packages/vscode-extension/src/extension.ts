@@ -69,12 +69,16 @@ let versionStatusBar: StatusBarItem | undefined;
 /** Document URIs already offered a version picker this session. */
 const promptedVersionUris = new Set<string>();
 
+/** VS Code settings section, language client id and command prefix. */
+const SETTINGS_SECTION = "megaloevolved";
+const DISPLAY_NAME = "MegaloEvolved";
+
 const getServerModule = (extensionContext: ExtensionContext): string =>
   extensionContext.asAbsolutePath(path.join("dist", "server.js"));
 
 const readConfiguredVersion = (): MegaloVersionId => {
   const raw = workspace
-    .getConfiguration("megacrow")
+    .getConfiguration(SETTINGS_SECTION)
     .get<string>("megaloVersion", DEFAULT_MEGALO_VERSION);
   return isMegaloVersionId(raw) ? raw : DEFAULT_MEGALO_VERSION;
 };
@@ -83,7 +87,7 @@ const writeConfiguredVersion = async (
   version: MegaloVersionId
 ): Promise<void> => {
   await workspace
-    .getConfiguration("megacrow")
+    .getConfiguration(SETTINGS_SECTION)
     .update("megaloVersion", version, true);
 };
 
@@ -102,18 +106,18 @@ const updateVersionStatusBar = (): void => {
   versionStatusBar.show();
 };
 
-/** The whole server configuration, built from the `megacrow.*` settings. */
+/** The whole server configuration, built from the `megaloevolved.*` settings. */
 const buildServerConfig = (): MegacrowConfig => {
-  const config = workspace.getConfiguration("megacrow");
+  const config = workspace.getConfiguration(SETTINGS_SECTION);
   const megaloVersion = readConfiguredVersion();
   return {
     compilerSettings: {
       strictStringLiterals: config.get<boolean>("strictStringLiterals", false),
-      creatorGamertag: config.get<string>("gametypeAuthor", "MegaCrow"),
+      creatorGamertag: config.get<string>("gametypeAuthor", DISPLAY_NAME),
     },
     gameBuildNumber: defaultGameBuildNumberFor(megaloVersion),
     locale: config.get<string>("locale", "en") === "ja" ? "ja" : "en",
-    megacrowExtensions: config.get<boolean>("megacrowExtensions", true)
+    megacrowExtensions: config.get<boolean>("languageExtensions", true)
       ? ALL_MEGACROW_EXTENSIONS
       : DEFAULT_MEGACROW_EXTENSIONS,
     megaloVersion,
@@ -192,15 +196,15 @@ const createClient = (extensionContext: ExtensionContext): LanguageClient => {
     synchronize: {
       fileEvents: workspace.createFileSystemWatcher("**/*.{txt,mglo}"),
     },
-    outputChannelName: "MegaCrow Megalo",
+    outputChannelName: DISPLAY_NAME,
     initializationOptions: (): MegacrowInitializationOptions => ({
       config: buildServerConfig(),
     }),
   };
 
   const languageClient = new LanguageClient(
-    "megacrow",
-    "MegaCrow Megalo",
+    SETTINGS_SECTION,
+    DISPLAY_NAME,
     serverOptions,
     clientOptions
   );
@@ -235,29 +239,34 @@ export async function activate(
   extensionContext: ExtensionContext
 ): Promise<void> {
   versionStatusBar = window.createStatusBarItem(StatusBarAlignment.Right, 100);
-  versionStatusBar.command = "megacrow.selectMegaloVersion";
+  versionStatusBar.command = `${SETTINGS_SECTION}.selectMegaloVersion`;
   extensionContext.subscriptions.push(versionStatusBar);
 
   extensionContext.subscriptions.push(
-    commands.registerCommand("megacrow.restartServer", async () => {
+    commands.registerCommand(`${SETTINGS_SECTION}.restartServer`, async () => {
       if (client) {
         await client.stop();
         client = undefined;
       }
       await startClient(extensionContext);
-      void window.showInformationMessage("MegaCrow language server restarted.");
+      void window.showInformationMessage(
+        `${DISPLAY_NAME} language server restarted.`
+      );
     })
   );
 
   extensionContext.subscriptions.push(
-    commands.registerCommand("megacrow.selectMegaloVersion", async () => {
-      await selectMegaloVersion({ force: true });
-    })
+    commands.registerCommand(
+      `${SETTINGS_SECTION}.selectMegaloVersion`,
+      async () => {
+        await selectMegaloVersion({ force: true });
+      }
+    )
   );
 
   extensionContext.subscriptions.push(
     workspace.onDidChangeConfiguration((event) => {
-      if (!(event.affectsConfiguration("megacrow") && client)) {
+      if (!(event.affectsConfiguration(SETTINGS_SECTION) && client)) {
         return;
       }
       void syncServerSettings(client);

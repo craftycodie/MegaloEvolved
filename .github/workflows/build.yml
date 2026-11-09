@@ -225,7 +225,7 @@ jobs:
         run: npm install
 
       - name: Package VSIX
-        run: npm run package --workspace=megacrow-megalo
+        run: npm run package --workspace=megaloevolved
 
       - name: Verify build string in bundles
         shell: bash
@@ -250,14 +250,14 @@ jobs:
             echo "Expected extension version $EXPECTED_VERSION, got $PKG_VERSION"
             exit 1
           fi
-          VSIX=$(ls packages/vscode-extension/megacrow-megalo-${EXPECTED_VERSION}.vsix | head -n 1)
+          VSIX=$(ls packages/vscode-extension/megaloevolved-${EXPECTED_VERSION}.vsix | head -n 1)
           echo "Packaged $VSIX ($EXPECTED_VERSION)"
 
       - name: Upload VSIX artifact
         uses: actions/upload-artifact@v4
         with:
-          name: megacrow-vscode-extension
-          path: packages/vscode-extension/megacrow-megalo-*.vsix
+          name: megaloevolved-vscode-extension
+          path: packages/vscode-extension/megaloevolved-*.vsix
           retention-days: 90
 
   tag:

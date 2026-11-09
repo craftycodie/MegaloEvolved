@@ -1,6 +1,6 @@
 # Changelog
 
-[@blamnetwork/megalo](https://www.npmjs.com/package/@blamnetwork/megalo) の主な変更点をここに記録します。
+MegaloEvolved（npm の [@blamnetwork/megalo](https://www.npmjs.com/package/@blamnetwork/megalo)）の主な変更点をここに記録します。
 
 ## [Unreleased]
 

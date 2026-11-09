@@ -119,12 +119,12 @@ jobs:
           mkdir -p upload
 
           # --- VS Code extension ---
-          if [[ -d artifacts/megacrow-vscode-extension ]]; then
+          if [[ -d artifacts/megaloevolved-vscode-extension ]]; then
             while IFS= read -r -d '' f; do
               name=$(basename "$f")
               cp -f "$f" "upload/$name"
               echo "Queued $name"
-            done < <(find artifacts/megacrow-vscode-extension -type f -name '*.vsix' -print0)
+            done < <(find artifacts/megaloevolved-vscode-extension -type f -name '*.vsix' -print0)
           fi
 
           # --- Tauri installers (unique names via artifact folder prefix) ---

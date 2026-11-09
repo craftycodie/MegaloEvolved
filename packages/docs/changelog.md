@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to [@blamnetwork/megalo](https://www.npmjs.com/package/@blamnetwork/megalo) are documented here.
+All notable changes to MegaloEvolved ([@blamnetwork/megalo](https://www.npmjs.com/package/@blamnetwork/megalo) on npm) are documented here.
 
 ## [Unreleased]
 

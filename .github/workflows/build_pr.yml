@@ -133,7 +133,7 @@ jobs:
         run: npm install
 
       - name: Package VSIX
-        run: npm run package --workspace=megacrow-megalo
+        run: npm run package --workspace=megaloevolved
 
       - name: Verify build string in bundles
         shell: bash
@@ -151,5 +151,5 @@ jobs:
       - name: Upload VSIX artifact
         uses: actions/upload-artifact@v4
         with:
-          name: megacrow-vscode-extension-pr
-          path: packages/vscode-extension/megacrow-megalo-*.vsix
+          name: megaloevolved-vscode-extension-pr
+          path: packages/vscode-extension/megaloevolved-*.vsix

@@ -1,6 +1,6 @@
-# @blamnetwork/megalo とは？
+# MegaloEvolved とは？
 
-**@blamnetwork/megalo** は、Halo の **Megalo** スクリプトを扱う TypeScript ライブラリです。Megalo は、Halo: Reach のゲームタイプやカスタムマップバリアントで使われるテキストベースのスクリプティング言語です。
+**MegaloEvolved**（npm パッケージ `@blamnetwork/megalo`）は、Halo の **Megalo** スクリプトを扱う TypeScript ライブラリです。Megalo は、Halo: Reach のゲームタイプやカスタムマップバリアントで使われるテキストベースのスクリプティング言語です。
 
 ## このパッケージが提供するもの
 
