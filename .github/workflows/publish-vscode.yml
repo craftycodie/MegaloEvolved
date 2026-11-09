@@ -1,0 +1,143 @@
+# Publish the VS Code extension to the Visual Studio Marketplace.
+#
+# On a full (non-prerelease) GitHub Release:
+#   1. Resolve the release tag → commit → Build workflow run
+#   2. Download the `megaloevolved-vscode-extension` artifact (the .vsix)
+#   3. `vsce publish` that exact .vsix (no rebuild)
+#
+# Auth: Marketplace trusted publishing (GitHub OIDC, no PAT secret).
+#   The `blamnetwork` publisher's trusted publisher entry must name this repo
+#   and this workflow file (publish-vscode.yml).
+#
+# Re-runs are safe: `--skip-duplicate` succeeds if the version is already live.
+# Build artifacts expire after 90 days; older releases cannot be published.
+
+name: Publish VS Code extension
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish the extension from"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write # OIDC token for Marketplace trusted publishing
+
+concurrency:
+  group: publish-vscode-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish to Marketplace
+    if: |
+      (github.event_name == 'release' && !github.event.release.prerelease) ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve Build run for release tag
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${TAG:-}" ]]; then
+            echo "No release tag (release event or workflow_dispatch input required)"
+            exit 1
+          fi
+
+          echo "Resolving commit for tag: $TAG"
+          REF_JSON=$(gh api "repos/${REPO}/git/ref/tags/${TAG}")
+          OBJECT_TYPE=$(printf '%s' "$REF_JSON" | jq -r .object.type)
+          OBJECT_SHA=$(printf '%s' "$REF_JSON" | jq -r .object.sha)
+          if [[ "$OBJECT_TYPE" == "tag" ]]; then
+            COMMIT_SHA=$(gh api "repos/${REPO}/git/tags/${OBJECT_SHA}" --jq .object.sha)
+          else
+            COMMIT_SHA="$OBJECT_SHA"
+          fi
+          echo "Tag $TAG → commit $COMMIT_SHA"
+
+          # Prefer a fully successful Build; otherwise the latest completed run
+          # (the VSIX job may still have passed when another matrix job failed).
+          RUN_ID=$(gh run list \
+            --repo "$REPO" \
+            --workflow build.yml \
+            --commit "$COMMIT_SHA" \
+            --status completed \
+            --limit 30 \
+            --json databaseId,conclusion,createdAt \
+            --jq '
+              (
+                [.[] | select(.conclusion == "success")]
+                | sort_by(.createdAt)
+                | reverse
+                | .[0].databaseId
+              )
+              // (
+                [.[] ]
+                | sort_by(.createdAt)
+                | reverse
+                | .[0].databaseId
+              )
+              // empty
+            ')
+
+          if [[ -z "$RUN_ID" ]]; then
+            echo "No completed Build workflow run found for commit $COMMIT_SHA"
+            exit 1
+          fi
+          echo "Using Build run id: $RUN_ID"
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Download VSIX
+        id: vsix
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ steps.resolve.outputs.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p vsix
+          if ! gh run download "$RUN_ID" --repo "$REPO" --name megaloevolved-vscode-extension --dir vsix; then
+            echo "No 'megaloevolved-vscode-extension' artifact in run $RUN_ID (expired, or the VSIX job failed)."
+            exit 1
+          fi
+
+          shopt -s nullglob
+          files=(vsix/*.vsix)
+          if [[ ${#files[@]} -ne 1 ]]; then
+            echo "Expected exactly one .vsix, found ${#files[@]}:"
+            ls -l vsix
+            exit 1
+          fi
+          VSIX="${files[0]}"
+
+          MANIFEST=$(unzip -p "$VSIX" extension/package.json)
+          PUBLISHER=$(printf '%s' "$MANIFEST" | jq -r .publisher)
+          NAME=$(printf '%s' "$MANIFEST" | jq -r .name)
+          VERSION=$(printf '%s' "$MANIFEST" | jq -r .version)
+          echo "Publishing ${PUBLISHER}.${NAME}@${VERSION} from $(basename "$VSIX")"
+          echo "path=$VSIX" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Publish to Visual Studio Marketplace
+        env:
+          VSIX: ${{ steps.vsix.outputs.path }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # --oidc needs vsce 4.1.0+.
+          npx --yes @vscode/vsce@4.1.0 publish --oidc --packagePath "$VSIX" --skip-duplicate
