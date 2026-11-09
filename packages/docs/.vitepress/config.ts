@@ -467,9 +467,15 @@ function supportedVersionsSidebar(
   return items;
 }
 
+/**
+ * Blam Network wordmark as on blam.network ("blam" + mark + "network"), where
+ * the mark stands in for the "!". VitePress renders nav text as HTML.
+ */
+const BLAM_NETWORK_WORDMARK = `<span class="bnet-wordmark" aria-label="Blam Network"><span class="bnet-wordmark__blam">blam</span><img class="bnet-wordmark__mark" src="${docsBase}images/blam-network-mark.png" alt="" aria-hidden="true" /><span class="bnet-wordmark__network">network</span></span>`;
+
 /** Top bar: only the Blam Network link; npm and GitHub are social icons. */
 function buildNav(): DefaultTheme.NavItem[] {
-  return [{ text: "Blam Network", link: "https://blam.network" }];
+  return [{ text: BLAM_NETWORK_WORDMARK, link: "https://blam.network" }];
 }
 
 function buildSidebar(
@@ -596,7 +602,7 @@ export default defineConfig(async () => {
         "link",
         {
           rel: "stylesheet",
-          href: "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Overpass:wght@400;500;600;700&display=swap",
+          href: "https://fonts.googleapis.com/css2?family=Barlow:wght@500;600&family=JetBrains+Mono:wght@400;500&family=Overpass:wght@400;500;600;700&display=swap",
         },
       ],
     ],
@@ -652,7 +658,7 @@ export default defineConfig(async () => {
         },
       },
       siteTitle:
-        `<span class="megalo-site-title"><span class="megalo-site-title-row"><span class="megalo-scope">@blamnetwork/</span><span class="megalo-name">megalo</span></span><span class="megalo-site-build">${MEGACROW_BUILD_STRING}</span></span>`,
+        `<span class="megalo-site-title"><span class="megalo-site-title-row"><span class="megalo-scope">Megalo</span><span class="megalo-name">Evolved</span></span><span class="megalo-site-build">${MEGACROW_BUILD_STRING}</span></span>`,
       socialLinks: [
         {
           icon: "npm",
